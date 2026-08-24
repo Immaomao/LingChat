@@ -58,12 +58,13 @@
   "i18n-ally.enabledFrameworks": ["vue"],
   "i18n-ally.indent": 2,
   "i18n-ally.translate.fallbackToSourceLanguage": true,
-  
   "prettier.requireConfig": true,
   "prettier.useEditorConfig": false,
   "prettier.configPath": "./.prettierrc.json",
   "files.associations": {
     "*.env.*": "dotenv",
     ".prettierrc": "json"
-  }
+  },
+  "rust-analyzer.cargo.buildScripts.enable": false,
+  "rust-analyzer.checkOnSave": false
 }
