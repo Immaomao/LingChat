@@ -12,34 +12,30 @@
   <AchievementToast v-if="isMainWindow" />
   <AdventureUnlockNotify v-if="isMainWindow" />
   <AppDialog v-if="isMainWindow" />
-
-  <!-- 首次启动新手引导（仅主窗口） -->
-  <TutorialOverlay v-if="isMainWindow" />
 </template>
 
 <script setup lang="ts">
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getImportedFonts, listSystemFonts, registerAllImportedFonts } from './api/services/font'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/core'
 import CursorEffects from './components/effects/CursorEffects.vue'
+import Notification from './components/ui/Notification.vue'
 import AchievementToast from './components/ui/AchievementToast.vue'
 import AdventureUnlockNotify from './components/ui/AdventureUnlockNotify.vue'
 import AppDialog from './components/ui/AppDialog.vue'
-import Notification from './components/ui/Notification.vue'
-import TutorialOverlay from './components/ui/TutorialOverlay.vue'
-import { useCanDeliver } from './composables/useCanDeliver'
-import { useSedentaryReminder } from './composables/useSedentaryReminder'
-import { useZoom } from './composables/useZoom'
+import { initUIStore } from './stores/modules/ui/ui'
 import { i18n } from './locales'
-import { useLlmProvidersStore } from './stores/modules/llm-providers'
 import { useSettingsStore } from './stores/modules/settings'
-import { useTutorialStore } from './stores/modules/tutorial'
+import { useLlmProvidersStore } from './stores/modules/llm-providers'
 import { useAchievementStore } from './stores/modules/ui/achievement'
 import { useDialogStore } from './stores/modules/ui/dialog'
-import { initUIStore } from './stores/modules/ui/ui'
+import { useSedentaryReminder } from './composables/useSedentaryReminder'
+import { useUpdater } from './composables/useUpdater'
+import { useCanDeliver } from './composables/useCanDeliver'
+import { useZoom } from './composables/useZoom'
+import { listSystemFonts, getImportedFonts, registerAllImportedFonts } from './api/services/font'
 
 // ─── 激活主动对话投放条件上报（仅在此处挂载一次） ────────────
 useCanDeliver()
@@ -139,21 +135,6 @@ onMounted(async () => {
 
   // 注册 F11 全屏快捷键
   window.addEventListener('keydown', handleKeyDown)
-
-  // ─── 首次启动新手引导 ──────────────────────────────────────
-  // 仅主窗口、非桌宠路由触发；检测 localStorage 首次启动标记
-  if (
-    getCurrentWindow().label === 'main' &&
-    route.path !== '/pet'
-  ) {
-    const tutorialStore = useTutorialStore()
-    if (tutorialStore.checkFirstLaunch()) {
-      // 延迟到首帧渲染后再弹，避免与 Loader 抢焦点
-      setTimeout(() => {
-        tutorialStore.startPreset('onboarding')
-      }, 800)
-    }
-  }
 
   // ─── 关闭确认逻辑 ──────────────────────────────────────────
 

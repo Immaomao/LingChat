@@ -1,16 +1,15 @@
-import advance from './advance'
-import api from './api'
 import common from './common'
-import game from './game'
-import misc from './misc'
 import nav from './nav'
-import pet from './pet'
-import scriptEditor from './scriptEditor'
+import advance from './advance'
 import settings from './settings'
-import stores from './stores'
-import tutorial from './tutorial'
-import ui from './ui'
+import game from './game'
 import views from './views'
+import pet from './pet'
+import stores from './stores'
+import ui from './ui'
+import api from './api'
+import scriptEditor from './scriptEditor'
+import misc from './misc'
 
 export default {
   common,
@@ -25,5 +24,4 @@ export default {
   api,
   scriptEditor,
   misc,
-  tutorial,
 }
