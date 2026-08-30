@@ -44,7 +44,7 @@ ort 源码（`environment.rs`）也自带警告：
   3. 找不到 / 加载失败 → 记录日志并返回失败，情绪分类 / VAD / 本地 TTS 走既有降级路径（分类器返回 None、VAD 返回 Err、TTS 停用），**不影响应用主体**。
 
 ### 3.3 打包分发
-- `tauri.conf.json` resources 增加 `binaries/onnxruntime.dll → onnxruntime.dll`（Windows 打包到 exe 同目录）。
+- `src-tauri/tauri.windows.conf.json`（新增，**Windows 专属配置**）：resources 增加 `binaries/onnxruntime.dll → onnxruntime.dll`（Windows 打包到 exe 同目录；macOS/Linux 不加载该配置、不校验此文件）。
 - `scripts/download-onnxruntime.mjs`（新增）：下载微软官方 win-x64 包并解出 `onnxruntime.dll` 到 `src-tauri/binaries/`（不入 git，见 `.gitignore`）。
 
 ### 3.4 版本匹配（重要坑）
@@ -60,7 +60,7 @@ ort 源码（`environment.rs`）也自带警告：
 | `src-tauri/src/utils/onnx.rs` | **新增**：`init_onnx_runtime()`（探测 → `ort::init_from` → 降级），含 `#[ignore]` 运行时验证测试 |
 | `src-tauri/src/lib.rs` | setup 中在 `init_data_dir` 之后调用 `utils::onnx::init_onnx_runtime()` |
 | `src-tauri/src/utils/mod.rs` | 注册 `pub mod onnx` |
-| `src-tauri/tauri.conf.json` | resources 打包 `onnxruntime.dll` |
+| `src-tauri/tauri.windows.conf.json` | **新增**（Windows 专属）：resources 打包 `onnxruntime.dll`；macOS/Linux 不校验 |
 | `scripts/download-onnxruntime.mjs` | **新增**：官方 dll 下载脚本（默认 1.27.1） |
 | `.gitignore` | 忽略 `src-tauri/binaries/`（~15MB 二进制不入库） |
 
