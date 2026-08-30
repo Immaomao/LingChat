@@ -26,6 +26,14 @@ const downloadScript = join(projectRoot, "scripts", "download-onnxruntime.mjs");
 // 需要 dll 的输出目录（存在才复制；tauri dev/build 的默认输出）
 const TARGET_DIRS = [join(srcTauri, "target", "debug"), join(srcTauri, "target", "release")];
 
+// 仅 Windows 需要 onnxruntime.dll（load-dynamic 只作用于 Windows target；
+// Linux/macOS 保持 download-binaries 静态链接，无需 dll）。
+// 否则 Linux/macOS 的 CI（beforeBuildCommand 触发本脚本）会白下载 59MB Windows dll。
+if (process.platform !== "win32") {
+  console.log("[onnx] 非 Windows 平台，跳过（load-dynamic 仅限 Windows）");
+  process.exit(0);
+}
+
 // 1. 确保 binaries/onnxruntime.dll 存在（缺失才下载，幂等）
 if (!existsSync(dll)) {
   console.log("[onnx] onnxruntime.dll 缺失，开始下载（scripts/download-onnxruntime.mjs）...");

@@ -112,9 +112,18 @@ jobs:
             ${{ runner.os == 'macOS' && '' || '' }}
         run: pnpm tauri build --no-bundle
 
+      - name: 收集产物（Windows 附带 onnxruntime.dll）
+        shell: bash
+        run: |
+          mkdir -p "${{ runner.temp }}/dist"
+          cp "${{ matrix.artifact-path }}" "${{ runner.temp }}/dist/"
+          if [ "${{ runner.os }}" = "Windows" ] && [ -f "src-tauri/target/release/onnxruntime.dll" ]; then
+            cp "src-tauri/target/release/onnxruntime.dll" "${{ runner.temp }}/dist/"
+          fi
+
       - name: 上传 artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: ${{ matrix.artifact-path }}
+          path: ${{ runner.temp }}/dist
           retention-days: 7
