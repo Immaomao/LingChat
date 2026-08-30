@@ -29,38 +29,30 @@ ort 源码（`environment.rs`）也自带警告：
 
 > `WARNING: This CPU does not support AVX2... The app will likely crash with an illegal instruction error; use a custom build of ONNX Runtime to fix.`
 
-## 3. 技术路线对比
+## 3. 技术方案细节（方案 A）
 
-| 方案 | 说明 | 优点 | 缺点 | 结论 |
-|---|---|---|---|---|
-| **A. `load-dynamic` + 微软官方 onnxruntime.dll** | 编译期不再静态链接，运行时从应用目录加载**微软官方** `onnxruntime.dll` | 官方包为 **SSE3 基线 + MLAS 运行时 CPUID dispatch**（AVX2 代码路径受 CPUID 保护，旧 CPU 自动走低指令集路径），**兼容旧 CPU**；无需自编译；dll 缺失时相关功能可优雅降级（代码已有容错） | 安装包增加 ~15MB；dll 需随包分发 | ✅ **推荐** |
-| B. 自编译 onnxruntime（SSE2/SSE3 基线） | 自己编一份低基线运行时 | 完全可控 | 编译/维护成本高，升级周期长，CI 复杂 | 备选 |
-| C. 检测 CPU 无 AVX2 时启动弹窗提示 | 治标 | 实现简单 | 用户依旧**无法使用**情绪/ASR/本地 TTS | 不推荐 |
+> **方案**：`load-dynamic` + 微软官方 `onnxruntime.dll`。官方包为 **SSE3 基线 + MLAS 运行时 CPUID dispatch**（源码 `onnxruntime/core/common/cpuid_info.*` 与 `mlas/lib/platform.cpp` 可证），AVX2 代码路径受 CPUID 保护，旧 CPU 自动走低指令集路径——**兼容旧 CPU 且无需自编译**；崩溃的根源只是 ort 默认用了 pyke 的 v3 编译包。
 
-**选 A 理由**：官方包从设计上就是「SSE3 基线 + 运行时指令集 dispatch」（源码 `onnxruntime/core/common/cpuid_info.*` 与 `mlas/lib/platform.cpp` 可证），这正是微软官方包能支持 Win10 全系 CPU 的原因；而崩溃的根源只是 ort 默认用了 pyke 的 v3 编译包。
-
-## 4. 技术方案细节（方案 A）
-
-### 4.1 编译期
+### 3.1 编译期
 - `Cargo.toml`：Windows target 的 `ort` 使用 `load-dynamic` → 不再静态链接 onnxruntime，exe 内不含 AVX2 指令，旧 CPU 可正常启动。
 - **范围仅 Windows**：`load-dynamic` 只作用于 `cfg(target_os = "windows")`；**Linux/macOS 保持 `download-binaries` 静态链接，行为与改动前完全一致**，无需任何适配。
 
-### 4.2 运行时加载
+### 3.2 运行时加载
 - 新增 `src-tauri/src/utils/onnx.rs`，在 `setup` 早期（任何 `ort::Session` 创建之前）调用：
   1. 探测 `onnxruntime.dll`：**exe 同目录**（开发/便携）→ **tauri 资源目录**（打包安装后）;
   2. 找到后 `ort::init_from(path)` **显式加载**（`load-dynamic` 下必须显式 `init_from`，设置 `ORT_DYLIB_PATH` 环境变量在 raw-dylib 机制下**无效**——已从 ort 源码确认）;
   3. 找不到 / 加载失败 → 记录日志并返回失败，情绪分类 / VAD / 本地 TTS 走既有降级路径（分类器返回 None、VAD 返回 Err、TTS 停用），**不影响应用主体**。
 
-### 4.3 打包分发
+### 3.3 打包分发
 - `tauri.conf.json` resources 增加 `binaries/onnxruntime.dll → onnxruntime.dll`（Windows 打包到 exe 同目录）。
 - `scripts/download-onnxruntime.mjs`（新增）：下载微软官方 win-x64 包并解出 `onnxruntime.dll` 到 `src-tauri/binaries/`（不入 git，见 `.gitignore`）。
 
-### 4.4 版本匹配（重要坑）
+### 3.4 版本匹配（重要坑）
 - `ort 2.0.0-rc.13` 编译时默认 **`api-27`**（对应 onnxruntime ≥ 1.27）。
 - 因此官方 dll 必须 **≥ 1.27**。更旧的（如 1.17.x，SSE3 但 API 太旧）会被 `ort::init_from` 以 `BadVersion` 拒绝。
 - 本实现默认下载 **官方 1.27.1**（脚本支持 `ORT_VERSION` 环境变量切换）。
 
-## 5. 已实现改动（本地 `dev` 分支，提交 `aa8be97c`）
+## 4. 已实现改动（本地 `dev` 分支，提交 `aa8be97c`）
 
 | 文件 | 改动 |
 |---|---|
@@ -72,14 +64,15 @@ ort 源码（`environment.rs`）也自带警告：
 | `scripts/download-onnxruntime.mjs` | **新增**：官方 dll 下载脚本（默认 1.27.1） |
 | `.gitignore` | 忽略 `src-tauri/binaries/`（~15MB 二进制不入库） |
 
-## 6. 已验证
+## 5. 已验证
 
 - ✅ `cargo check` 通过（`load-dynamic` 编译不依赖 dll）
 - ✅ 运行时测试：`ort::init_from` 成功加载官方 **1.27.1** 并创建 SessionBuilder（`cargo test load_official_onnxruntime -- --ignored`）
 - ✅ `pnpm tauri build` 成功：`ling_chat.exe` + NSIS 安装包生成，安装包内确认包含 `onnxruntime.dll`
 - ✅ dll 缺失时降级逻辑存在（emotion/vad/tts 均有容错）
+- ✅ **旧 CPU 实机验证通过**：无 AVX2 的旧 CPU（三代酷睿 Ivy Bridge）上运行打包后的 exe，应用正常启动，情绪 / VAD / 本地 TTS 正常工作，无 0xC000001D 崩溃
 
-## 7. 对开发流程的影响与自动化
+## 6. 对开发流程的影响与自动化
 
 - **开发者零操作**：新增 `scripts/ensure-onnxruntime.mjs`（幂等：dll 缺失才下载，并复制到 `target/debug`、`target/release`），挂到 `beforeDevCommand` / `beforeBuildCommand`：
   - `pnpm tauri dev` / `pnpm tauri build` 自动确保 dll 就位，无需手动跑下载脚本；
@@ -88,19 +81,16 @@ ort 源码（`environment.rs`）也自带警告：
 - **范围仅 Windows**：`load-dynamic` 只作用于 Windows target；Linux/macOS 保持 `download-binaries` 静态链接，行为与改动前一致，无需适配。
 - **注意**：`src-tauri/binaries/` 不入 git（~15MB 二进制）；升级 ort 版本时需同步 `scripts/download-onnxruntime.mjs` 的 `ORT_VERSION`（ort 2.0.0-rc.13 需 onnxruntime ≥1.27）。
 
-## 8. 待验证 / 风险
+## 7. 待验证 / 风险
 
-1. **旧 CPU 实机验证（关键）**：官方 1.27.1 的 SSE3 基线**理论成立但未经无 AVX2 实机确认**。建议验证手段（任选）：
-   - QEMU：`qemu-system-x86_64 -cpu IvyBridge` 装 Win10 跑打包后的 exe（最真实）；
-   - 虚拟机隐藏 AVX2（如 VMware CPU 掩码）；
-   - 实机三代酷睿。
-2. **性能**：旧 CPU 上无 AVX2 路径，情绪/VAD/本地 TTS 推理会走 SSE 内核，速度略慢（可接受）。
-3. **安装包体积**：增加约 15MB（官方 dll 未压缩前 15MB，NSIS 压缩后增量更小）。
-4. **dll 缺失场景**：安装包/便携目录不含 dll 时相关 AI 功能自动降级（不影响主流程），需在发布流程保证 dll 随包分发。
+1. **性能**：旧 CPU 上无 AVX2 路径，情绪/VAD/本地 TTS 推理会走 SSE 内核，速度略慢（可接受）。
+2. **安装包体积**：增加约 15MB（官方 dll 未压缩前 15MB，NSIS 压缩后增量更小）。
+3. **dll 缺失场景**：安装包/便携目录不含 dll 时相关 AI 功能自动降级（不影响主流程），需在发布流程保证 dll 随包分发。
 
-## 9. 决策点（请维护者确认）
+## 8. 决策点（请维护者确认）
 
 1. 是否同意采用**方案 A（load-dynamic + 官方 onnxruntime.dll）**作为兼容旧 CPU 的路线？
 2. 是否接受**安装包 +~15MB** 换取旧 CPU 兼容？
 3. 范围确认：`load-dynamic` **仅 Windows**，Linux/macOS 保持 `download-binaries` 静态链接（行为不变）——是否同意？
-4. 若批准，本分支提交 `aa8be97c` 即可合入；后续旧 CPU 实测结果可在本 issue 回帖更新。
+4. **合入方式**：直接合入 `dev` 正式开发主线，还是**另开独立分支**再合入（参考 Heiyahand 的 `pr-XXX-xxx` 模式，如 `pr-oldcpu-avx2`）？当前改动已在本地 `dev` 分支（提交 `aa8be97c` / `d4f00087` / `89048f8a`），如需独立分支可据此切出。
+5. 若批准，上述提交即可合入。（旧 CPU 实机验证已通过，见上文「已验证」）
