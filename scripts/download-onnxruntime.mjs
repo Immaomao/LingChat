@@ -16,7 +16,7 @@
 // 版本说明：默认 1.27.1，因为 ort 2.0.0-rc.13 编译时默认 api-27（对应 onnxruntime
 // 1.27+），更低的版本（如 1.17.x）会被 ort::init_from 以 BadVersion 拒绝。
 
-import { createWriteStream, existsSync, mkdirSync, renameSync } from 'node:fs'
+import { createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
@@ -32,8 +32,20 @@ const outFile = join(outDir, 'onnxruntime.dll')
 const ORT_VERSION = process.env.ORT_VERSION || '1.27.1'
 const ZIP_URL = `https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-${ORT_VERSION}.zip`
 
-// 官方便携包内 dll 相对路径
-const DLL_IN_ZIP = 'lib/onnxruntime.dll'
+// 递归查找文件（官方 zip 内有顶层目录 onnxruntime-win-x64-<ver>/，
+// dll 实际在 <顶层>/lib/onnxruntime.dll，故不能用固定相对路径）
+function findFile(dir, filename) {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) {
+      const found = findFile(full, filename)
+      if (found) return found
+    } else if (entry === filename) {
+      return full
+    }
+  }
+  return null
+}
 
 async function download(url, dest) {
   const res = await fetch(url)
@@ -69,9 +81,10 @@ async function main() {
     )
   }
 
-  const dll = join(extractDir, DLL_IN_ZIP)
-  if (!existsSync(dll)) {
-    throw new Error(`解压后未找到 ${DLL_IN_ZIP}，请检查包结构`)
+  // 递归查找解压出的 onnxruntime.dll（兼容顶层目录结构，tar / Expand-Archive 均可）
+  const dll = findFile(extractDir, 'onnxruntime.dll')
+  if (!dll) {
+    throw new Error(`解压后未找到 onnxruntime.dll（${extractDir}），请检查包结构`)
   }
   renameSync(dll, outFile)
 
