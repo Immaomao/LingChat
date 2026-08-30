@@ -62,10 +62,11 @@ async-trait = "0.1"
 # 实时 ASR 用官方 /api-ws/v1/inference 端点（标准 GET 升级 + Bearer）；
 # rustls-tls-webpki-roots 与项目 reqwest 的 TLS 栈一致
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
-# ort（ONNX Runtime）：用 load-dynamic 运行时加载，避免静态链接 pyke 预编译的
+# ort（ONNX Runtime）：Windows 用 load-dynamic 运行时加载，避免静态链接 pyke 预编译的
 # x86-64-v3（要求 AVX2/FMA）二进制——旧 CPU（如三代酷睿，无 AVX2）上启动会因非法指令崩溃。
 # 改为运行时从应用目录加载官方 onnxruntime.dll（SSE3 基线，兼容旧 CPU）。
-ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "load-dynamic"] }
+# 注意：load-dynamic 仅限 Windows（见下方 target 配置）；Linux/macOS 保持 download-binaries 静态链接，行为不变。
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray"] }
 ndarray = "0.17"
 
 sbv2_core = { git = "https://gh-proxy.org/github.com/shadow01a/sbv2-api/", default-features = false, features = ["std"] }
@@ -102,7 +103,7 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-ort = { version = "=2.0.0-rc.13", default-features = false, features = ["directml"] }
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["directml", "load-dynamic"] }
 sbv2_core = { git = "https://gh-proxy.org/github.com/shadow01a/sbv2-api/", default-features = false, features = ["directml"] }
 windows = { version = "0.62.2", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dxgi", "Win32_Security", "Win32_System_Threading"] }
 
@@ -112,13 +113,13 @@ wgpu = "26"
 
 
 [target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dependencies]
-ort = { version = "=2.0.0-rc.13", default-features = false, features = ["webgpu"] }
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["webgpu", "download-binaries"] }
 sbv2_core = { git = "https://gh-proxy.org/github.com/shadow01a/sbv2-api/", default-features = false, features = ["webgpu"] }
 ash = { version = "0.38", default-features = false, features = ["loaded"] }
 
 
 [target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
-ort = { version = "=2.0.0-rc.13", default-features = false, features = ["coreml"] }
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["coreml", "download-binaries"] }
 sbv2_core = { git = "https://gh-proxy.org/github.com/shadow01a/sbv2-api/", default-features = false, features = ["coreml"] }
 
 
