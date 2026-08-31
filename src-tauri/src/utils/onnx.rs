@@ -67,37 +67,40 @@ pub fn init_onnx_runtime(app: &AppHandle) -> bool {
         v
     };
 
-    for path in &candidates {
-        if path.exists() {
-            // load-dynamic 下显式加载该 dll（必须在任何 ort API 之前调用）
-            match ort::init_from(path.as_path()) {
-                Ok(_) => {
-                    tracing::info!("[ONNX] onnxruntime.dll 就绪: {}", path.display());
-                    ONNX_AVAILABLE.store(true, Ordering::Relaxed);
-                    // CPU 兼容提示：官方 dll 为 SSE3 基线，但若检测不到 AVX2 仅提示（不影响运行）
-                    #[cfg(target_arch = "x86_64")]
-                    if !std::arch::is_x86_feature_detected!("avx2") {
-                        tracing::info!(
-                            "[ONNX] 当前 CPU 不支持 AVX2，使用官方 onnxruntime（SSE3 基线）可正常推理"
-                        );
-                    }
-                    return true;
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "[ONNX] 加载 {} 失败: {e}。ONNX 相关功能将降级。",
-                        path.display()
-                    );
-                }
+    // 找第一个存在的候选（exe 同目录 → resource_dir）。
+    // ⚠️ `ort::init_from` 只能调用一次：加载失败后 ort 内部 `load_dynamic::init`
+    //    的 `G_ORT_LIB` inserter 已被消费，再次调用会走 `unwrap_unchecked` UB，
+    //    实测导致 0xC0000409 崩溃（损坏/空 dll 文件场景）。因此无论成败，
+    //    都只尝试加载第一个存在的文件，绝不循环重试。
+    let Some(path) = candidates.iter().find(|p| p.exists()) else {
+        tracing::warn!(
+            "[ONNX] 未找到 onnxruntime.dll（已尝试: {:?}）。ONNX 相关功能将降级。",
+            candidates
+        );
+        return false;
+    };
+
+    match ort::init_from(path.as_path()) {
+        Ok(_) => {
+            tracing::info!("[ONNX] onnxruntime.dll 就绪: {}", path.display());
+            ONNX_AVAILABLE.store(true, Ordering::Relaxed);
+            // CPU 兼容提示：官方 dll 为 SSE3 基线，但若检测不到 AVX2 仅提示（不影响运行）
+            #[cfg(target_arch = "x86_64")]
+            if !std::arch::is_x86_feature_detected!("avx2") {
+                tracing::info!(
+                    "[ONNX] 当前 CPU 不支持 AVX2，使用官方 onnxruntime（SSE3 基线）可正常推理"
+                );
             }
+            true
+        }
+        Err(e) => {
+            tracing::warn!(
+                "[ONNX] 加载 {} 失败: {e}。ONNX 相关功能将降级。",
+                path.display()
+            );
+            false
         }
     }
-
-    tracing::warn!(
-        "[ONNX] 未找到 onnxruntime.dll（已尝试: {:?}）。ONNX 相关功能将降级。",
-        candidates
-    );
-    false
 }
 
 #[cfg(test)]
