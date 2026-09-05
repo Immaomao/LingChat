@@ -75,7 +75,7 @@ jobs:
           - platform: macos
             os: macos-latest
             target: ""
-          - platform: linux-arm64
+          - platform: linux-amd64
             os: ubuntu-latest
             target: ""
           - platform: linux-aarch64
@@ -122,6 +122,9 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         continue-on-error: true
         env:
+          # Linux 打 AppImage 依赖 linuxdeploy：GitHub ubuntu-24.04 runner 无 FUSE，
+          # 必须用解压模式运行，否则报 `failed to run linuxdeploy`（x86_64 产物全丢）。
+          APPIMAGE_EXTRACT_AND_RUN: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -130,9 +133,18 @@ jobs:
             ${{ runner.os == 'Windows' && '-C linker=rust-lld' || '' }}
             ${{ runner.os == 'macOS' && '' || '' }}
         with:
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: "${{ matrix.platform }}-build"
+          # 不用 tauri-action 内置的 uploadWorkflowArtifacts：
+          # 它会对每个 bundle 循环 create artifact，若名字不含 [bundle] 会重复 create 同名 → 409，
+          # 导致后续产物（AppImage / .sig 等）丢失。改由下方独立 step 一次性上传整个 bundle 目录。
           args: ${{ matrix.target }}
+
+      - name: 上传构建产物（bundle 全量）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-build
+          path: src-tauri/target/release/bundle/**
+          if-no-files-found: warn
 
   release:
     needs: [generate-data, build]
