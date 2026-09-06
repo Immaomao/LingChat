@@ -121,6 +121,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/dev' }}
 
       - name: 构建 Tauri 应用
+        if: matrix.platform != 'linux-amd64'
         uses: tauri-apps/tauri-action@v1
         continue-on-error: true
         env:
@@ -135,8 +136,37 @@ jobs:
           # 不用 tauri-action 内置的 uploadWorkflowArtifacts：
           # 它会对每个 bundle 循环 create artifact，若名字不含 [bundle] 会重复 create 同名 → 409，
           # 导致后续产物（AppImage / .sig 等）丢失。改由下方独立 step 一次性上传整个 bundle 目录。
-          # TODO(诊断): --verbose 用于定位 linuxdeploy 失败真实原因，定位后移除
-          args: --verbose
+          args: ${{ matrix.target }}
+
+      # linux-amd64：ort webgpu 需要 libwebgpu_dawn.so（Dawn），linuxdeploy 打包时须能在库路径解析到它。
+      # 分两步：先 cargo build（ort copy-dylibs 会把 dawn.so 放到 target/release），
+      # 复制到系统库路径，再 tauri build（增量）让 linuxdeploy / deb 能找到 dawn.so。
+      - name: 构建 Tauri 应用（linux-amd64：放置 libwebgpu_dawn.so）
+        if: matrix.platform == 'linux-amd64'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cd src-tauri
+          echo "=== 1) cargo build --release（触发 ort copy-dylibs 生成 dawn.so）==="
+          cargo build --release 2>&1 | tail -5
+          echo "=== 2) 定位 libwebgpu_dawn.so ==="
+          ls -la target/release/ | grep -i dawn || echo "(target/release 无 dawn.so)"
+          DAWN=$(find target/release /home/runner/.cache /home/runner/.cargo -name "libwebgpu_dawn.so" 2>/dev/null | head -1)
+          echo "DAWN=$DAWN"
+          if [ -n "$DAWN" ]; then
+            sudo cp -L "$DAWN" /usr/lib/x86_64-linux-gnu/libwebgpu_dawn.so
+            sudo ldconfig
+            echo "✅ 已放置 /usr/lib/x86_64-linux-gnu/libwebgpu_dawn.so"
+          else
+            echo "!! 未找到 dawn.so，全盘查找："
+            find / -name "libwebgpu_dawn.so" 2>/dev/null | head
+          fi
+          cd ..
+          echo "=== 3) tauri build（linuxdeploy 应能解析 dawn.so）==="
+          pnpm tauri build --verbose 2>&1 | tail -40
 
       - name: 上传构建产物（bundle 全量）
         if: always()
