@@ -120,21 +120,6 @@ jobs:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/dev' }}
 
-      - name: 诊断 linuxdeploy（临时，仅 amd64）
-        if: matrix.platform == 'linux-amd64'
-        run: |
-          mkdir -p /tmp/diag && cd /tmp/diag
-          curl -sL https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage -o ld.AppImage
-          chmod +x ld.AppImage
-          file ld.AppImage
-          echo "--- direct run ---"
-          ./ld.AppImage --version 2>&1; echo "direct_exit=$?"
-          echo "--- extract-and-run ---"
-          ./ld.AppImage --appimage-extract-and-run --version 2>&1; echo "extract_exit=$?"
-          echo "--- fuse libs ---"
-          ls -la /usr/lib/x86_64-linux-gnu/ | grep -i fuse || echo "no fuse lib found"
-          ldconfig -p 2>/dev/null | grep -i fuse || echo "no fuse in ldconfig"
-
       - name: 构建 Tauri 应用
         uses: tauri-apps/tauri-action@v1
         continue-on-error: true
@@ -150,7 +135,8 @@ jobs:
           # 不用 tauri-action 内置的 uploadWorkflowArtifacts：
           # 它会对每个 bundle 循环 create artifact，若名字不含 [bundle] 会重复 create 同名 → 409，
           # 导致后续产物（AppImage / .sig 等）丢失。改由下方独立 step 一次性上传整个 bundle 目录。
-          args: ${{ matrix.target }}
+          # TODO(诊断): --verbose 用于定位 linuxdeploy 失败真实原因，定位后移除
+          args: --verbose
 
       - name: 上传构建产物（bundle 全量）
         if: always()
