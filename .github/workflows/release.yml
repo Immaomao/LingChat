@@ -107,7 +107,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install eatmydata
-          sudo eatmydata apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libpipewire-0.3-dev libgbm-dev libxdo-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libssl-dev mold zip mold xdg-utils
+          # libfuse2t64：ubuntu-24.04 的 FUSE2 包。AppImage（linuxdeploy）打包需要挂载/执行 AppImage，
+          # 缺 FUSE 会报 `failed to run linuxdeploy`（x86_64 ubuntu-latest 受影响）。
+          sudo eatmydata apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libpipewire-0.3-dev libgbm-dev libxdo-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libssl-dev mold zip mold xdg-utils libfuse2t64
 
       - name: 安装 Rust
         uses: dtolnay/rust-toolchain@stable
@@ -122,9 +124,6 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         continue-on-error: true
         env:
-          # Linux 打 AppImage 依赖 linuxdeploy：GitHub ubuntu-24.04 runner 无 FUSE，
-          # 必须用解压模式运行，否则报 `failed to run linuxdeploy`（x86_64 产物全丢）。
-          APPIMAGE_EXTRACT_AND_RUN: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
