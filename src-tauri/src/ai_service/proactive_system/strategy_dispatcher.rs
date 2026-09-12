@@ -248,12 +248,20 @@ impl StrategyDispatcher {
         let native_compress = resolve_chat_provider(app)
             .map(|p| p.native_image_compress())
             .unwrap_or(NativeImageCompress::default());
+        // 全局：图片超过端点大小限制时是否自动压缩（关闭则超限截图按原样直发）
+        let auto_compress = crate::config::app_config::AppConfig::load(app)
+            .map(|c| c.auto_compress_image)
+            .unwrap_or(true);
 
         // ─── 原生识图路径：截屏 → 压缩/原图 → 当轮直发图片 ───
         if native_vision {
             let jpeg_bytes = capture_screen_as_jpeg()?;
-            let transient_image = image_bytes_to_native_data_url(&jpeg_bytes, native_compress)?;
-            let raw_prompt = format!("{{ {} 偷看了一眼 {} 的电脑桌面，请你结合桌面截图内容与 {} 自然地聊两句。 }}", ai_name, user_name, user_name);
+            let transient_image =
+                image_bytes_to_native_data_url(&jpeg_bytes, native_compress, auto_compress)?;
+            let raw_prompt = format!(
+                "{{ {} 偷看了一眼 {} 的电脑桌面，请你结合桌面截图内容与 {} 自然地聊两句。 }}",
+                ai_name, user_name, user_name
+            );
             tracing::info!(
                 "[StrategyDispatcher] 主动偷看走原生识图: 截图当轮直发对话模型（不写记忆）。"
             );

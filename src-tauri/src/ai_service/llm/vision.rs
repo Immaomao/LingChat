@@ -79,6 +79,8 @@ pub fn vision_base_url(provider: &LlmProviderConfig) -> String {
 ///
 /// `mime` 为完整 MIME 类型（如 `image/jpeg`）——`ContentPart` 的 `is_image()`
 /// 依赖 `image/` 前缀，data URL 也据此拼接。
+/// `auto_compress` 为全局开关：图片超过端点硬限制时是否自动压缩（见
+/// [`crate::utils::image::clamp_to_inline_limits`]）；关闭则原样发送。
 pub async fn analyze_image(
     http: &Client,
     target: &VisionTarget,
@@ -86,10 +88,14 @@ pub async fn analyze_image(
     image_bytes: &[u8],
     mime: &str,
     max_tokens: u32,
+    auto_compress: bool,
 ) -> Result<VisionResult> {
+    // 端点有 32 MiB / 8192px 的硬限制，开启时超限先缩放重编码，避免整条请求被拒。
+    let (image_bytes, mime) =
+        crate::utils::image::clamp_to_inline_limits(image_bytes, mime, auto_compress)?;
     let data_url = format!(
         "data:{mime};base64,{}",
-        base64::prelude::BASE64_STANDARD.encode(image_bytes)
+        base64::prelude::BASE64_STANDARD.encode(&image_bytes)
     );
     let content = MessageContent::from_parts(vec![
         ContentPart::Text(prompt.to_string()),

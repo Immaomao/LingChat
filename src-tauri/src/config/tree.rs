@@ -94,6 +94,17 @@ pub fn build_config_tree(app: &AppHandle) -> ConfigTree {
                                 .to_string(),
                         setting_type: "bool".to_string(),
                     },
+                    ConfigSetting {
+                        key: keys::LLM_AUTO_COMPRESS_IMAGE.to_string(),
+                        value: read_setting(
+                            app,
+                            keys::LLM_AUTO_COMPRESS_IMAGE,
+                            &app_defaults.auto_compress_image.to_string(),
+                        ),
+                        description: "AUTO_COMPRESS_IMAGE — 图片超过端点大小限制（32 MiB / 单边 8192px）时自动压缩后再发送，作用于所有携带图片的 LLM 请求；关闭后不再做该检查，超限图片按原样直发、可能被服务端拒绝"
+                            .to_string(),
+                        setting_type: "bool".to_string(),
+                    },
                 ],
             },
         );

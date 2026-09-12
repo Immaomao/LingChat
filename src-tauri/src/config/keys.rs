@@ -25,6 +25,9 @@ pub const LLM_OUTPUT_SEC_LANG: &str = "llm.output_sec_lang";
 pub const CONSUMERS: &str = "llm.consumers";
 pub const LLM_NO_EMOTION_LIMIT: &str = "llm.no_emotion_limit_prompt";
 pub const LLM_TIMEOUT_SECS: &str = "llm.timeout_secs";
+/// 图片超过端点大小限制时是否自动压缩后再发送（作用于所有携带图片的 LLM 请求；
+/// 关闭后不再做该检查，超限图片将按原样直发，可能被服务端拒绝）。
+pub const LLM_AUTO_COMPRESS_IMAGE: &str = "llm.auto_compress_image";
 
 // ========== 翻译（对应 TRANSLATE_LLM_PROVIDER / TRANSLATE_MODEL / TRANSLATE_API_KEY / TRANSLATE_BASE_URL） ==========
 pub const TRANSLATE_PROVIDER: &str = "translate.provider";

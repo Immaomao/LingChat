@@ -11,7 +11,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, ImageBuffer, ImageReader, Rgb};
+use image::{DynamicImage, GenericImageView, ImageReader};
 use serde_json::{Value, json};
 
 use crate::ai_service::llm::provider_config::resolve_vision_provider;
@@ -216,6 +216,9 @@ impl Tool for ReadMediaFileTool {
                 "没有可用的视觉模型；请先在“高级设置 → 大模型管理”配置视觉模型".into(),
             )
         })?;
+        let auto_compress = crate::config::app_config::AppConfig::load(&app)
+            .map(|c| c.auto_compress_image)
+            .unwrap_or(true);
         let analysis = analyze_media(
             &provider,
             media_kind,
@@ -223,6 +226,7 @@ impl Tool for ReadMediaFileTool {
             mime,
             &prompt,
             media_settings.max_output_tokens,
+            auto_compress,
         )
         .await?;
 
@@ -393,7 +397,7 @@ fn prepare_image(
             image = image.resize(max_edge, max_edge, FilterType::Lanczos3);
         }
     }
-    let rgb = flatten_on_white(&image);
+    let rgb = crate::utils::image::flatten_on_white(&image);
     let (delivered_width, delivered_height) = rgb.dimensions();
     let mut output = Vec::new();
     JpegEncoder::new_with_quality(&mut output, settings.jpeg_quality)
@@ -410,18 +414,6 @@ fn prepare_image(
     })
 }
 
-fn flatten_on_white(image: &DynamicImage) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let rgba = image.to_rgba8();
-    ImageBuffer::from_fn(rgba.width(), rgba.height(), |x, y| {
-        let pixel = rgba.get_pixel(x, y).0;
-        let alpha = u16::from(pixel[3]);
-        let blend = |channel: u8| -> u8 {
-            (((u16::from(channel) * alpha) + (255 * (255 - alpha))) / 255) as u8
-        };
-        Rgb([blend(pixel[0]), blend(pixel[1]), blend(pixel[2])])
-    })
-}
-
 async fn analyze_media(
     provider: &crate::ai_service::llm::provider_config::LlmProviderConfig,
     kind: MediaKind,
@@ -429,6 +421,7 @@ async fn analyze_media(
     mime: &str,
     prompt: &str,
     max_output_tokens: u32,
+    auto_compress: bool,
 ) -> Result<String, ToolError> {
     let http = crate::ai_service::llm::factory::build_http_client(VISION_REQUEST_TIMEOUT_SECS)
         .map_err(|error| ToolError::Execution(format!("创建视觉请求客户端失败: {error}")))?;
@@ -445,6 +438,7 @@ async fn analyze_media(
                 bytes,
                 mime,
                 max_output_tokens,
+                auto_compress,
             )
             .await
         },

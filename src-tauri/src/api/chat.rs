@@ -69,6 +69,10 @@ pub async fn send_chat_message(
     let native_compress = resolve_chat_provider(&app)
         .map(|p| p.native_image_compress())
         .unwrap_or_default();
+    // 全局：图片超过端点大小限制时是否自动压缩（关闭则超限图片按原样直发）
+    let auto_compress = AppConfig::load(&app)
+        .map(|c| c.auto_compress_image)
+        .unwrap_or(true);
     // 当轮附带的多模态图片 data URL（原生识图路径专用，不写入记忆）
     let mut transient_image: Option<String> = None;
 
@@ -81,7 +85,8 @@ pub async fn send_chat_message(
     if let Some(ref b64) = screenshot_base64 {
         if let Ok(image_bytes) = base64::Engine::decode(&base64::prelude::BASE64_STANDARD, b64) {
             if native_vision {
-                transient_image = image_bytes_to_native_data_url(&image_bytes, native_compress);
+                transient_image =
+                    image_bytes_to_native_data_url(&image_bytes, native_compress, auto_compress);
                 if transient_image.is_some() {
                     tracing::info!("[Chat] 原生识图: 截图直接携带当轮发送（不写记忆）。");
                 } else {
@@ -597,12 +602,16 @@ pub async fn feed_image(app: AppHandle, path: String) -> Result<(), String> {
     let native_compress = resolve_chat_provider(&app)
         .map(|p| p.native_image_compress())
         .unwrap_or_default();
+    // 全局：图片超过端点大小限制时是否自动压缩（关闭则超限图片按原样直发）
+    let auto_compress = AppConfig::load(&app)
+        .map(|c| c.auto_compress_image)
+        .unwrap_or(true);
 
     events::emit_thinking(&app, true);
 
     // 原生识图路径：仅写入一条轻量文本提示（图片本身当轮发送，不持久化）
     if native_vision {
-        let transient_image = read_file_native_data_url(&path, native_compress);
+        let transient_image = read_file_native_data_url(&path, native_compress, auto_compress);
         if let Some(image) = transient_image {
             let mut gs = game_status.lock().await;
             gs.add_line(
@@ -661,9 +670,13 @@ pub async fn feed_image(app: AppHandle, path: String) -> Result<(), String> {
 }
 
 /// 读取图片文件并转换为原生多模态识图的 data URL（当轮携带，不写记忆）。
-fn read_file_native_data_url(path: &str, compress: NativeImageCompress) -> Option<String> {
+fn read_file_native_data_url(
+    path: &str,
+    compress: NativeImageCompress,
+    auto_compress: bool,
+) -> Option<String> {
     let bytes = std::fs::read(path).ok()?;
-    image_bytes_to_native_data_url(&bytes, compress)
+    image_bytes_to_native_data_url(&bytes, compress, auto_compress)
 }
 
 #[tauri::command]
