@@ -4,19 +4,26 @@
 //! 设计参考 Python 原版 `ling_chat_python/core/pic_analyzer.py` 的 DesktopAnalyzer。
 
 use reqwest::Client;
-use serde_json::Value;
 use std::time::Instant;
 use tauri::AppHandle;
 
-use crate::ai_service::llm::provider_config::{LlmProviderConfig, resolve_vision_provider};
+use crate::ai_service::llm::provider_config::resolve_vision_provider;
+use crate::ai_service::llm::vision::{self, VisionTarget};
 
-/// 构造预配置的 reqwest Client（TLS 见 crate::utils::tls::build_tls_config）。
-fn build_vlm_client() -> Client {
-    let tls_config = crate::utils::tls::build_tls_config().expect("TLS 配置失败");
-    Client::builder()
-        .tls_backend_preconfigured(tls_config)
-        .build()
-        .expect("reqwest client 构建失败")
+/// 截屏分析的输出上限（token）。
+const VISION_MAX_TOKENS: u32 = 512;
+/// 视觉请求的 HTTP 读超时。
+const ANALYZER_HTTP_TIMEOUT_SECS: u64 = 120;
+
+/// 构造预配置的 reqwest Client（统一走 factory，复用 webpki-roots TLS 配置）。
+fn build_analyzer_client() -> Client {
+    match crate::ai_service::llm::factory::build_http_client(ANALYZER_HTTP_TIMEOUT_SECS) {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::error!("[ScreenAnalyzer] 构建 HTTP 客户端失败: {e}");
+            Client::new()
+        },
+    }
 }
 
 /// 屏幕分析器的配置（从环境/Store 加载）。
@@ -60,35 +67,9 @@ impl ScreenAnalyzerConfig {
 
         Self {
             vd_api_key: provider.api_key.clone(),
-            vd_base_url: vision_base_url(&provider),
+            vd_base_url: vision::vision_base_url(&provider),
             vd_model: provider.model.clone(),
         }
-    }
-}
-
-/// 将 provider 的 base_url 适配为视觉分析使用的 OpenAI 兼容端点前缀
-/// （请求时拼接 `{base}/chat/completions`）。
-/// Kimi Code 的聊天入口是 Anthropic 兼容协议，视觉请求需要改用
-/// 官方提供的 OpenAI 兼容入口。
-fn vision_base_url(provider: &LlmProviderConfig) -> String {
-    let base = provider.base_url.trim().trim_end_matches('/');
-    match provider.provider.as_str() {
-        "kimicode" => {
-            if base.is_empty() {
-                "https://api.kimi.com/coding/v1".to_string()
-            } else if base.ends_with("/v1/messages") {
-                base.trim_end_matches("/messages").to_string()
-            } else if base.ends_with("/v1/chat/completions") {
-                base.trim_end_matches("/chat/completions").to_string()
-            } else if base.ends_with("/v1") {
-                base.to_string()
-            } else {
-                format!("{base}/v1")
-            }
-        },
-        "openai" if base.is_empty() => "https://api.openai.com/v1".to_string(),
-        "deepseek" if base.is_empty() => "https://api.deepseek.com".to_string(),
-        _ => base.to_string(),
     }
 }
 
@@ -110,7 +91,7 @@ impl ScreenAnalyzer {
     pub fn new(config: ScreenAnalyzerConfig) -> Self {
         Self {
             config,
-            client: build_vlm_client(),
+            client: build_analyzer_client(),
             last_report: AnalysisReport::default(),
         }
     }
@@ -136,9 +117,7 @@ impl ScreenAnalyzer {
         }
 
         let jpeg_bytes = capture_screen_as_jpeg()?;
-
-        let (base64, mime) = encode_image_base64(&jpeg_bytes, "jpeg");
-        self.call_vlm(prompt, &base64, &mime).await
+        self.run_vision(prompt, &jpeg_bytes, "image/jpeg").await
     }
 
     /// 分析任意图片字节（支持 JPEG / PNG / WebP 等格式）。
@@ -151,8 +130,7 @@ impl ScreenAnalyzer {
             return None;
         }
 
-        let (base64, mime) = encode_image_base64(image_bytes, "png");
-        self.call_vlm(prompt, &base64, &mime).await
+        self.run_vision(prompt, image_bytes, "image/png").await
     }
 
     /// 分析本地图片文件路径。
@@ -167,109 +145,63 @@ impl ScreenAnalyzer {
         let bytes = std::fs::read(image_path).ok()?;
 
         // 根据扩展名推断 MIME
-        let mime_type = if image_path.ends_with(".png") {
-            "png"
+        let mime = if image_path.ends_with(".png") {
+            "image/png"
         } else if image_path.ends_with(".webp") {
-            "webp"
+            "image/webp"
         } else {
-            "jpeg"
+            "image/jpeg"
         };
 
-        let (base64, mime) = encode_image_base64(&bytes, mime_type);
-        self.call_vlm(prompt, &base64, &mime).await
+        self.run_vision(prompt, &bytes, mime).await
     }
 
-    /// 调用视觉语言模型 API。
-    async fn call_vlm(
-        &mut self,
-        prompt: &str,
-        base64_image: &str,
-        mime_type: &str,
-    ) -> Option<String> {
-        let image_url = format!("data:image/{};base64,{}", mime_type, base64_image);
-        let model = &self.config.vd_model;
-
-        let payload = serde_json::json!({
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": image_url}}
-                    ]
-                }
-            ],
-            "max_tokens": 512
-        });
+    /// 调用视觉模型识别一张图片，记录耗时与用量后返回文本描述。
+    async fn run_vision(&mut self, prompt: &str, image_bytes: &[u8], mime: &str) -> Option<String> {
+        // reqwest::Client 内部为 Arc，克隆廉价；避免跨 await 借用 self.client。
+        let client = self.client.clone();
+        let target = VisionTarget {
+            api_key: self.config.vd_api_key.clone(),
+            base_url: self.config.vd_base_url.clone(),
+            model: self.config.vd_model.clone(),
+        };
 
         tracing::info!(
             "[ScreenAnalyzer] Sending image to VLM ({}) for analysis...",
-            model
+            target.model
         );
-
         let start = Instant::now();
-
-        let api_key = &self.config.vd_api_key;
-        let endpoint = format!("{}/chat/completions", self.config.vd_base_url);
-
-        let res = self
-            .client
-            .post(&endpoint)
-            .bearer_auth(api_key)
-            .json(&payload)
-            .send()
-            .await;
-
+        let result = vision::analyze_image(
+            &client,
+            &target,
+            prompt,
+            image_bytes,
+            mime,
+            VISION_MAX_TOKENS,
+        )
+        .await;
         let elapsed = start.elapsed().as_secs_f64();
 
-        match res {
-            Ok(response) => {
-                if response.status().is_success() {
-                    if let Ok(json_res) = response.json::<Value>().await {
-                        let content = json_res["choices"][0]["message"]["content"]
-                            .as_str()
-                            .map(|s| s.to_string());
-
-                        let usage = &json_res["usage"];
-                        self.last_report = AnalysisReport {
-                            response_time_secs: elapsed,
-                            input_tokens: usage["prompt_tokens"].as_u64().map(|n| n as u32),
-                            output_tokens: usage["completion_tokens"].as_u64().map(|n| n as u32),
-                        };
-
-                        if let Some(ref c) = content {
-                            tracing::info!("[ScreenAnalyzer] Analysis success: {}", c);
-                        }
-
-                        return content;
-                    }
-                } else {
-                    let err_text = response.text().await.unwrap_or_default();
-                    tracing::error!(
-                        "[ScreenAnalyzer] VLM API returned error status: {}",
-                        err_text
-                    );
-                }
+        match result {
+            Ok(result) => {
+                self.last_report = AnalysisReport {
+                    response_time_secs: elapsed,
+                    input_tokens: result.input_tokens,
+                    output_tokens: result.output_tokens,
+                };
+                tracing::info!("[ScreenAnalyzer] Analysis success: {}", result.text);
+                Some(result.text)
             },
             Err(e) => {
-                tracing::error!("[ScreenAnalyzer] Failed to send request to VLM: {:?}", e);
+                self.last_report = AnalysisReport {
+                    response_time_secs: elapsed,
+                    ..Default::default()
+                };
+                tracing::error!("[ScreenAnalyzer] VLM analysis failed: {e}");
+                None
             },
         }
-
-        self.last_report = AnalysisReport {
-            response_time_secs: elapsed,
-            ..Default::default()
-        };
-
-        None
     }
-}
-
-/// 将图片字节编码为 Base64，返回 (base64_string, mime_type)。
-fn encode_image_base64(bytes: &[u8], mime_type: &str) -> (String, String) {
-    let b64 = base64::Engine::encode(&base64::prelude::BASE64_STANDARD, bytes);
-    (b64, mime_type.to_string())
 }
 
 /// 原生识图发送给对话模型的图片处理参数。

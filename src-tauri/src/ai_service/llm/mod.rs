@@ -9,6 +9,7 @@ pub(crate) mod factory;
 mod provider;
 pub mod provider_config;
 mod providers;
+pub mod vision;
 
 // 兼容别名：既有 `llm::codex_auth::...` 路径继续可用（模块化后为 codex::auth）
 pub use codex::auth as codex_auth;

@@ -45,7 +45,7 @@ pub struct GenaiProvider {
 /// `v1` 会被当作"文件"替换掉，拼出 `https://api.deepseek.com/chat/completions` → 404。
 ///
 /// 修复：在传给 genai 前补上尾斜杠（`https://api.deepseek.com/v1/`）。
-fn normalize_base_url(raw: &str) -> String {
+pub(crate) fn normalize_base_url(raw: &str) -> String {
     let trimmed = raw.trim().trim_end_matches('/');
     if trimmed.is_empty() {
         return raw.to_string();
