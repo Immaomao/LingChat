@@ -26,6 +26,8 @@ export interface CharacterSettings {
   character_folder: string;
   /** 该角色对玩家的六维好感度（由角色目录 affection.yml 载入；未加载时为 null） */
   affection: AffectionVector | null;
+  /** 负面情绪标签全集（评估打标、安抚清空；始终为数组） */
+  mood_tags: string[];
 }
 
 /// 前端用台词条目（对应 Rust GameLineInit）

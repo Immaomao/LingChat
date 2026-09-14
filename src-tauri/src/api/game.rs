@@ -75,6 +75,8 @@ pub struct CharacterSettingsInit {
     pub character_folder: String,
     /// 该角色对玩家的六维好感度（由角色目录 `affection.yml` 载入）。
     pub affection: Option<AffectionVector>,
+    /// 该角色当前对玩家怀有的负面情绪标签（同源 `affection.yml`）。
+    pub mood_tags: Vec<String>,
 }
 
 impl From<&CharacterSettings> for CharacterSettingsInit {
@@ -100,6 +102,7 @@ impl From<&CharacterSettings> for CharacterSettingsInit {
             live2d: s.live2d.clone(),
             character_folder: s.character_folder.clone(),
             affection: None,
+            mood_tags: Vec::new(),
         }
     }
 }
@@ -420,16 +423,11 @@ pub(crate) async fn build_web_init_data(
             .map_err(|e| format!("获取角色设定失败: {}", e))?;
         let mut init = CharacterSettingsInit::from(&settings);
         // get_role_settings_by_id 经由 role_manager.get_role 加载角色，好感度随之就绪
-        init.affection = Some(
-            service
-                .game_status
-                .lock()
-                .await
-                .role_manager
-                .get_loaded(cid)
-                .map(|r| r.affection)
-                .unwrap_or_default(),
-        );
+        let loaded = service.game_status.lock().await;
+        if let Some(role) = loaded.role_manager.get_loaded(cid) {
+            init.affection = Some(role.affection);
+            init.mood_tags = role.mood_tags.clone();
+        }
         init
     };
 
@@ -522,6 +520,7 @@ pub(crate) async fn build_web_init_data(
                     // 这其中 clothes 需要额外处理。
                     settings.clothes_name = r.current_clothes.clone();
                     settings.affection = Some(r.affection);
+                    settings.mood_tags = r.mood_tags.clone();
                     settings
                 })
             })

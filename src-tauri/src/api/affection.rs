@@ -9,11 +9,11 @@ use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
 
 use crate::AppState;
-use crate::ai_service::types::AffectionVector;
+use crate::ai_service::affection::AffectionState;
 
-/// 返回所有已加载角色的当前好感度（role_id 字符串键 → 六维数值）。
+/// 返回所有已加载角色的当前好感度状态（role_id 字符串键 → 六维数值 + 情绪标签）。
 #[tauri::command]
-pub async fn get_affection(app: AppHandle) -> Result<HashMap<String, AffectionVector>, String> {
+pub async fn get_affection(app: AppHandle) -> Result<HashMap<String, AffectionState>, String> {
     let state = app.state::<AppState>();
     let game_status = {
         let service = state.ai_service.lock().await;

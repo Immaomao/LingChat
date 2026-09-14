@@ -103,6 +103,11 @@ pub fn update_affection_tool() -> ToolDefinition {
                 "reason": {
                     "type": "string",
                     "description": "调整的简短理由（中文）。"
+                },
+                "mood_tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "这段对话给角色带来的负面情绪标签（1~3 个简短中文词，如 生气/受伤/失望/吃醋/冷漠）。只在产生明显负面情绪时填写；传空数组表示之前的负面情绪已被安抚消除；不填表示维持现状。"
                 }
             },
             "required": ["role_id", "deltas", "reason"]
@@ -110,16 +115,18 @@ pub fn update_affection_tool() -> ToolDefinition {
     )
 }
 
-/// 一次好感度调整：role_id + 各维度增量 + 理由。
+/// 一次好感度调整：role_id + 各维度增量 + 可选情绪标签 + 理由。
 #[derive(Clone, Debug)]
 pub struct AffectionAdjustment {
     pub role_id: i32,
     /// （维度键名, 增量），增量已钳制到 ±5、剔除了 0 与未知维度。
     pub deltas: Vec<(String, i32)>,
+    /// 负面情绪标签：`None` 维持现状，`Some(vec)` 整体替换（空 vec = 消除）。
+    pub mood_tags: Option<Vec<String>>,
     pub reason: String,
 }
 
-/// 从 tool call 解析好感度调整。role_id 为 0/不在场、deltas 为空或全部无效时返回 None。
+/// 从 tool call 解析好感度调整。role_id 为 0/不在场、deltas 与 mood_tags 都为空时返回 None。
 pub fn parse_affection_update(tool_call: &ToolCall) -> Option<AffectionAdjustment> {
     let args = parse_tool_args(&tool_call.function.arguments);
 
@@ -128,25 +135,44 @@ pub fn parse_affection_update(tool_call: &ToolCall) -> Option<AffectionAdjustmen
         return None;
     }
 
-    // deltas 容错：部分模型会把对象双编码成 JSON 字符串
-    let raw_deltas = args.get("deltas")?;
-    let deltas_value = if raw_deltas.is_object() {
-        raw_deltas.clone()
-    } else {
-        parse_tool_args(&raw_deltas.to_string())
-    };
-
+    // deltas 容错：部分模型会把对象双编码成 JSON 字符串；缺省视为无数值变化
     let mut deltas = Vec::new();
-    if let Some(map) = deltas_value.as_object() {
-        for (dim, raw) in map {
-            let Some(d) = parse_delta(raw) else { continue };
-            let d = d.clamp(-5, 5);
-            if d != 0 && AffectionVector::DIMENSIONS.iter().any(|(k, _)| *k == dim) {
-                deltas.push((dim.clone(), d));
+    if let Some(raw_deltas) = args.get("deltas") {
+        let deltas_value = if raw_deltas.is_object() {
+            raw_deltas.clone()
+        } else {
+            parse_tool_args(&raw_deltas.to_string())
+        };
+        if let Some(map) = deltas_value.as_object() {
+            for (dim, raw) in map {
+                let Some(d) = parse_delta(raw) else { continue };
+                let d = d.clamp(-5, 5);
+                if d != 0 && AffectionVector::DIMENSIONS.iter().any(|(k, _)| *k == dim) {
+                    deltas.push((dim.clone(), d));
+                }
             }
         }
     }
-    if deltas.is_empty() {
+
+    // mood_tags 容错：数组、或逗号/顿号分隔的字符串；缺省 = 维持现状
+    let mood_tags = args.get("mood_tags").and_then(|raw| {
+        if let Some(arr) = raw.as_array() {
+            return Some(
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect::<Vec<_>>(),
+            );
+        }
+        raw.as_str().map(|s| {
+            s.split([',', '，', '、', ' '])
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+    });
+
+    if deltas.is_empty() && mood_tags.is_none() {
         return None;
     }
 
@@ -159,6 +185,7 @@ pub fn parse_affection_update(tool_call: &ToolCall) -> Option<AffectionAdjustmen
     Some(AffectionAdjustment {
         role_id,
         deltas,
+        mood_tags,
         reason,
     })
 }

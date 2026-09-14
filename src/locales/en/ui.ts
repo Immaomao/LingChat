@@ -506,6 +506,9 @@ export default {
     introPersist: "Values are saved with the character, shared across saves and not rolled back.",
     introOverflow:
       'Values may overflow: above 100 is "Overflowing" (vertex glows on the radar); below 0 is "Estranged" (shown in cold colors).',
+    moodTitle: "Current mood",
+    introMood:
+      "Negative mood tags are recorded and affect the character's attitude; soothe them to clear.",
     tier: {
       estranged: "Estranged",
       acquainted: "Just Met",

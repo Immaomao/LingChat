@@ -478,6 +478,8 @@ export default {
     introPersist: "數值跟住角色保存，跨存檔共享，唔會隨存檔回滾。",
     introOverflow:
       "數值允許溢出：超過 100 為「滿溢」，雷達圖頂點發光；低過 0 為「疏離」，以冷色顯示。",
+    moodTitle: "當前情緒",
+    introMood: "負面情緒標籤會被記錄並影響角色態度，安撫後即可消除。",
     tier: {
       estranged: "疏離",
       acquainted: "初識",

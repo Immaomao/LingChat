@@ -241,7 +241,7 @@ impl GameRoleManager {
             }),
             _ => None,
         };
-        let affection = crate::ai_service::affection::load(character_dir.as_deref());
+        let affection_state = crate::ai_service::affection::load(character_dir.as_deref());
 
         let new_role = GameRole {
             role_id: Some(role.id),
@@ -249,7 +249,8 @@ impl GameRoleManager {
             settings,
             resource_path,
             current_clothes: clothes,
-            affection,
+            affection: affection_state.vector,
+            mood_tags: affection_state.mood_tags,
             character_dir,
             voice_maker,
             ..Default::default()
@@ -258,32 +259,55 @@ impl GameRoleManager {
         Ok(())
     }
 
-    /// 调整角色好感度并写回角色文件；角色未加载或全部维度无效时返回 None。
-    /// 返回调整后的完整六维数值。
+    /// 调整角色好感度（可选同时更新负面情绪标签）并写回角色文件；
+    /// 角色未加载或全部维度无效时返回 None。返回调整后的（六维数值, 情绪标签）。
+    ///
+    /// `mood_tags`：`None` 维持现状，`Some(vec)` 整体替换（空 vec = 消除情绪）。
     pub fn adjust_affection(
         &mut self,
         role_id: i32,
         deltas: &[(String, i32)],
-    ) -> Option<AffectionVector> {
+        mood_tags: Option<Vec<String>>,
+    ) -> Option<(AffectionVector, Vec<String>)> {
         let role = self.loaded_roles.get_mut(&role_id)?;
         let mut changed = false;
         for (dim, delta) in deltas {
             changed |= role.affection.add_delta(dim, *delta);
         }
+        if let Some(tags) = mood_tags {
+            let tags = crate::ai_service::affection::sanitize_mood_tags(tags);
+            if tags != role.mood_tags {
+                role.mood_tags = tags;
+                changed = true;
+            }
+        }
         if changed {
             crate::ai_service::affection::save(
                 role.character_dir.as_deref(),
-                &role.affection,
+                &crate::ai_service::affection::AffectionState {
+                    vector: role.affection,
+                    mood_tags: role.mood_tags.clone(),
+                },
             );
         }
-        Some(role.affection)
+        Some((role.affection, role.mood_tags.clone()))
     }
 
-    /// 所有已加载角色的当前好感度（role_id 字符串键，便于 JSON 序列化）。
-    pub fn loaded_affections(&self) -> HashMap<String, AffectionVector> {
+    /// 所有已加载角色的当前好感度状态（role_id 字符串键，便于 JSON 序列化）。
+    pub fn loaded_affections(&self) -> HashMap<String, crate::ai_service::affection::AffectionState> {
         self.loaded_roles
             .iter()
-            .filter_map(|(id, role)| role.role_id.map(|_| (id.to_string(), role.affection)))
+            .filter_map(|(id, role)| {
+                role.role_id.map(|_| {
+                    (
+                        id.to_string(),
+                        crate::ai_service::affection::AffectionState {
+                            vector: role.affection,
+                            mood_tags: role.mood_tags.clone(),
+                        },
+                    )
+                })
+            })
             .collect()
     }
 

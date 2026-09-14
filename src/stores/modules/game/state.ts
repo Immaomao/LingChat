@@ -70,6 +70,8 @@ export interface GameRole {
   character_folder: string;
   /** 对玩家的六维好感度（init 数据携带，affection:changed 事件刷新；未加载时为 undefined） */
   affection?: AffectionVector;
+  /** 负面情绪标签全集（评估打标、安抚清空，随 affection 同源刷新；未加载时为 undefined） */
+  moodTags?: string[];
 }
 
 export interface GameState {

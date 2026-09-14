@@ -112,6 +112,20 @@
                         </div>
                       </div>
 
+                      <!-- 当前情绪：仅存在负面情绪标签时显示（暗红/玫红系，区别于增量粉芯片） -->
+                      <div
+                        v-if="moodTags.length > 0"
+                        class="mt-3 flex flex-wrap items-center gap-2"
+                      >
+                        <span class="flex items-center gap-1 text-xs text-white/50">
+                          <CloudRain :size="12" />
+                          {{ $t("ui.affection.moodTitle") }}
+                        </span>
+                        <span v-for="tag in moodTags" :key="tag" class="affection-mood-chip">
+                          {{ tag }}
+                        </span>
+                      </div>
+
                       <!-- 距下一档进度 -->
                       <div
                         v-if="nextTierInfo"
@@ -303,6 +317,7 @@
                           <div class="mt-1">{{ $t("ui.affection.introEval") }}</div>
                           <div>{{ $t("ui.affection.introPersist") }}</div>
                           <div>{{ $t("ui.affection.introOverflow") }}</div>
+                          <div>{{ $t("ui.affection.introMood") }}</div>
                         </div>
                       </Transition>
                     </div>
@@ -319,7 +334,7 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from "vue";
-import { Heart, ChevronDown } from "lucide-vue-next";
+import { Heart, ChevronDown, CloudRain } from "lucide-vue-next";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import Button from "../base/widget/Button.vue";
 import { useGameStore } from "../../stores/modules/game";
@@ -344,6 +359,8 @@ function close() {
 
 const role = computed(() => gameStore.currentInteractRole);
 const affection = computed(() => role.value?.affection ?? null);
+/** 当前角色的负面情绪标签（无标签时整个「当前情绪」区不渲染） */
+const moodTags = computed(() => role.value?.moodTags ?? []);
 
 type DimKey = keyof AffectionVector;
 const dimensions: { key: DimKey }[] = [
@@ -573,7 +590,10 @@ watch(enabled, async (v) => {
     const all = await getAffection();
     for (const [roleId, values] of Object.entries(all)) {
       const r = gameStore.gameRoles[Number(roleId)];
-      if (r) r.affection = values;
+      if (r) {
+        r.affection = values;
+        r.moodTags = values.mood_tags;
+      }
     }
   } catch (e) {
     console.warn("[Affection] 兜底拉取好感度失败:", e);
@@ -662,5 +682,17 @@ watch(enabled, async (v) => {
 }
 .affection-delta-down {
   color: #7fc4ff;
+}
+
+/* 「当前情绪」负面标签芯片：暗红/玫红系，与正增量粉色芯片区分 */
+.affection-mood-chip {
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #f5a8c4;
+  background: rgba(224, 80, 126, 0.14);
+  border: 1px solid rgba(224, 80, 126, 0.35);
+  white-space: nowrap;
 }
 </style>

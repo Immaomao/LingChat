@@ -586,7 +586,8 @@ impl Default for CharacterSettings {
 // AffectionVector（六维好感度）
 // ==========================================
 
-/// 单个角色对玩家的六维情感状态，各项取值 0~100。
+/// 单个角色对玩家的六维情感状态，各项取值任意整数（允许溢出：
+/// >100 为「满溢」、负数为「疏离」）。
 ///
 /// 持久化在角色目录下的 `affection.yml`（跟随角色、跨存档共享，不随存档快照回滚）；
 /// 运行时挂在 `GameRole.affection` 上，由上帝 Agent 定期评估对话后调整。
@@ -686,6 +687,9 @@ pub struct GameRole {
     pub memory_bank: GameMemoryBank,
     /// 对玩家的六维好感度（持久化在角色目录 `affection.yml`）。
     pub affection: AffectionVector,
+    /// 对玩家怀有的负面情绪标签（如「生气」「受伤」；评估产生、安抚消除，
+    /// 与好感度同文件持久化）。
+    pub mood_tags: Vec<String>,
     /// 角色目录（settings.yml 所在路径，好感度文件也写在这里）。
     pub character_dir: Option<PathBuf>,
     pub voice_maker: Option<crate::ai_service::tts::VoiceMaker>,

@@ -503,6 +503,8 @@ export default {
     introPersist: "数値はキャラクターごとに保存され、セーブ間で共有されます。",
     introOverflow:
       "数値はオーバーフロー可能：100 超は「あふれ」（頂点が発光）、0 未満は「疎遠」（寒色表示）。",
+    moodTitle: "今の気分",
+    introMood: "ネガティブな気分タグは記録され、態度に影響します。なだめると消えます。",
     tier: {
       estranged: "疎遠",
       acquainted: "初対面",

@@ -19,6 +19,8 @@ pub struct NpcAffectionView {
     pub subtitle: String,
     pub info: String,
     pub current: AffectionVector,
+    /// 当前怀有的负面情绪标签（评估参考：安抚后应传空数组清除）。
+    pub mood_tags: Vec<String>,
 }
 
 // ============================================================
@@ -246,8 +248,13 @@ impl GodAgentCore {
                 .map(|(key, label)| format!("{} {}", label, npc.current.get(key).unwrap_or(0)))
                 .collect::<Vec<_>>()
                 .join("、");
+            let mood = if npc.mood_tags.is_empty() {
+                "无".to_string()
+            } else {
+                npc.mood_tags.join("、")
+            };
             npc_block.push_str(&format!(
-                "- role_id={}: {}\n  简介: {}\n  设定: {}\n  当前情感（数值可超过 100，负数为疏离）: {}\n",
+                "- role_id={}: {}\n  简介: {}\n  设定: {}\n  当前情感（数值可超过 100，负数为疏离）: {}\n  当前负面情绪标签: {}\n",
                 npc.role_id,
                 npc.name,
                 if npc.subtitle.is_empty() {
@@ -257,6 +264,7 @@ impl GodAgentCore {
                 },
                 if npc.info.is_empty() { "无" } else { &npc.info },
                 dims,
+                mood,
             ));
         }
 
@@ -285,6 +293,9 @@ impl GodAgentCore {
              \n\
              评估原则：日常正面互动 +1~+2，明显打动/冒犯 ±3，非常深刻或严重伤害 ±4~±5；\
              没有受到这段对话影响的维度不要调整；变化要符合角色性格，保守为主、宁少勿多。\n\
+             负面情绪标签：这段对话若给角色带来明显负面情绪（被冒犯、被忽视、被伤害等），\
+             用 mood_tags 标记 1~3 个简短中文词；若角色之前怀有的负面情绪在这段对话中被安抚或消解，\
+             传空数组清除；没有变化则不填。\n\
              请对每个有情感变化的在场角色调用一次 update_affection 工具。";
         let user_prompt = format!("{}\n{}", npc_block, dialog_block);
 
