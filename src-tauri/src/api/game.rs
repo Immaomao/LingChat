@@ -13,7 +13,7 @@ use crate::ai_service::message_system::generator::{
     GeneratorDeps, GeneratorSource, MessageGenerator,
 };
 use crate::ai_service::types::{
-    CharacterSettings, GameLine, LineAttributeExt, LineBase, Live2dSettings,
+    AffectionVector, CharacterSettings, GameLine, LineAttributeExt, LineBase, Live2dSettings,
 };
 use crate::config::{self, AppConfig};
 use crate::db::entities::line;
@@ -73,6 +73,8 @@ pub struct CharacterSettingsInit {
     pub body_part: Option<HashMap<String, serde_json::Value>>,
     pub live2d: Option<Live2dSettings>,
     pub character_folder: String,
+    /// 该角色对玩家的六维好感度（由角色目录 `affection.yml` 载入）。
+    pub affection: Option<AffectionVector>,
 }
 
 impl From<&CharacterSettings> for CharacterSettingsInit {
@@ -97,6 +99,7 @@ impl From<&CharacterSettings> for CharacterSettingsInit {
             body_part: s.body_part.clone(),
             live2d: s.live2d.clone(),
             character_folder: s.character_folder.clone(),
+            affection: None,
         }
     }
 }
@@ -410,17 +413,24 @@ pub(crate) async fn build_web_init_data(
     app: &AppHandle,
 ) -> Result<WebInitData, String> {
     let character_settings = {
-        let cid = service.init_character_id;
-        let cid = match cid {
-            Some(v) => v,
-            None => 0,
-        };
-        CharacterSettingsInit::from(
-            &service
-                .get_role_settings_by_id(cid)
+        let cid = service.init_character_id.unwrap_or(0);
+        let settings = service
+            .get_role_settings_by_id(cid)
+            .await
+            .map_err(|e| format!("获取角色设定失败: {}", e))?;
+        let mut init = CharacterSettingsInit::from(&settings);
+        // get_role_settings_by_id 经由 role_manager.get_role 加载角色，好感度随之就绪
+        init.affection = Some(
+            service
+                .game_status
+                .lock()
                 .await
-                .map_err(|e| format!("获取角色设定失败: {}", e))?,
-        )
+                .role_manager
+                .get_loaded(cid)
+                .map(|r| r.affection)
+                .unwrap_or_default(),
+        );
+        init
     };
 
     let (
@@ -511,6 +521,7 @@ pub(crate) async fn build_web_init_data(
                     let mut settings = CharacterSettingsInit::from(&r.settings);
                     // 这其中 clothes 需要额外处理。
                     settings.clothes_name = r.current_clothes.clone();
+                    settings.affection = Some(r.affection);
                     settings
                 })
             })

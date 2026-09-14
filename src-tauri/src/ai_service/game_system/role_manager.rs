@@ -11,7 +11,9 @@ use crate::ai_service::game_system::persistent_memory_system::{
 use crate::ai_service::llm::LlmSlot;
 use crate::ai_service::tts::VoiceMaker;
 use crate::ai_service::tts::local::LocalTtsRuntime;
-use crate::ai_service::types::{CharacterSettings, GameLine, GameMemoryBank, GameRole, LlmMessage};
+use crate::ai_service::types::{
+    AffectionVector, CharacterSettings, GameLine, GameMemoryBank, GameRole, LlmMessage,
+};
 use crate::config::tts::TtsConfig;
 use crate::db::entities::line::LineAttribute;
 use crate::db::managers::memory_repo::MemoryRepo;
@@ -221,17 +223,68 @@ impl GameRoleManager {
 
         tracing::info!("角色 {} 的服装设置为：{}", role.id, clothes);
 
+        // 角色目录与好感度：目录解析与 RoleRepo::get_role_settings_by_id 同规则
+        // （MAIN → characters/，NPC → scripts/{key}/characters/），好感度文件与
+        // settings.yml 同目录存放，跟随角色而非存档。
+        let character_dir = match role.role_type {
+            crate::db::entities::role::RoleType::Main => Some(crate::api::resolve_character_dir_in(
+                &self.data_dir,
+                &settings.character_folder,
+            )),
+            crate::db::entities::role::RoleType::Npc => role.script_key.as_ref().map(|sk| {
+                self.data_dir
+                    .join("game_data")
+                    .join("scripts")
+                    .join(sk)
+                    .join("characters")
+                    .join(&settings.character_folder)
+            }),
+            _ => None,
+        };
+        let affection = crate::ai_service::affection::load(character_dir.as_deref());
+
         let new_role = GameRole {
             role_id: Some(role.id),
             display_name: Some(display_name),
             settings,
             resource_path,
             current_clothes: clothes,
+            affection,
+            character_dir,
             voice_maker,
             ..Default::default()
         };
         self.loaded_roles.insert(role.id, new_role);
         Ok(())
+    }
+
+    /// 调整角色好感度并写回角色文件；角色未加载或全部维度无效时返回 None。
+    /// 返回调整后的完整六维数值。
+    pub fn adjust_affection(
+        &mut self,
+        role_id: i32,
+        deltas: &[(String, i32)],
+    ) -> Option<AffectionVector> {
+        let role = self.loaded_roles.get_mut(&role_id)?;
+        let mut changed = false;
+        for (dim, delta) in deltas {
+            changed |= role.affection.add_delta(dim, *delta);
+        }
+        if changed {
+            crate::ai_service::affection::save(
+                role.character_dir.as_deref(),
+                &role.affection,
+            );
+        }
+        Some(role.affection)
+    }
+
+    /// 所有已加载角色的当前好感度（role_id 字符串键，便于 JSON 序列化）。
+    pub fn loaded_affections(&self) -> HashMap<String, AffectionVector> {
+        self.loaded_roles
+            .iter()
+            .filter_map(|(id, role)| role.role_id.map(|_| (id.to_string(), role.affection)))
+            .collect()
     }
 
     /// 通过 script_key/script_role_key 获取运行时角色。

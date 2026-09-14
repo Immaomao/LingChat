@@ -460,6 +460,16 @@ export default {
     statusCompleted: "已完成",
     defaultWorkLabel: "工作",
   },
+  affection: {
+    title: "好感度",
+    noData: "暫無數據",
+    fondness: "好感",
+    trust: "信賴",
+    intimacy: "親密",
+    rapport: "默契",
+    interest: "興趣",
+    longing: "思念",
+  },
   resourceSync: {
     totalChanges: "總共 {count} 個變更",
     selectedCount: "揀咗 {count} 個",

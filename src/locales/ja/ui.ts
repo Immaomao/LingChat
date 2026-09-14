@@ -485,6 +485,16 @@ export default {
     statusCompleted: "完了",
     defaultWorkLabel: "作業",
   },
+  affection: {
+    title: "好感度",
+    noData: "データなし",
+    fondness: "好感",
+    trust: "信頼",
+    intimacy: "親密",
+    rapport: "気心",
+    interest: "興味",
+    longing: "想い",
+  },
   resourceSync: {
     totalChanges: "変更 {count} 件",
     selectedCount: "{count} 件選択中",

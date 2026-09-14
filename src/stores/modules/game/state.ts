@@ -37,6 +37,16 @@ export interface ScriptInfo {
   freeDialogueInfo: FreeDialogueInfo;
 }
 
+/** 六维好感度向量（与 Rust AffectionVector 同 snake_case 键名），各项 0~100 */
+export interface AffectionVector {
+  fondness: number;
+  trust: number;
+  intimacy: number;
+  rapport: number;
+  interest: number;
+  longing: number;
+}
+
 export interface GameRole {
   roleId: number;
   roleName: string;
@@ -58,6 +68,8 @@ export interface GameRole {
   bodyPart: object;
   live2d?: Live2dSettings | null;
   character_folder: string;
+  /** 对玩家的六维好感度（init 数据携带，affection:changed 事件刷新；未加载时为 undefined） */
+  affection?: AffectionVector;
 }
 
 export interface GameState {
@@ -78,6 +90,9 @@ export interface GameState {
   dialogHistory: GameMessage[];
   currentScene: SceneInfo | null; // 当前加载的场景
   command: string | null;
+
+  /** 最近一次好感度变化（驱动对话标题徽章的高亮/飘字动画） */
+  lastAffectionChange: { roleId: number; deltaSum: number; at: number } | null;
 
   initialized: boolean;
   /** LoadingTransition 启动动画是否已完成（§1.9 门控：动画期间不启动 ASR） */
@@ -104,6 +119,7 @@ export const state: GameState = {
   dialogHistory: [],
   currentScene: null,
   command: null,
+  lastAffectionChange: null,
 
   initialized: false,
   loadingComplete: false,

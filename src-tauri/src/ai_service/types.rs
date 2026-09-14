@@ -583,6 +583,91 @@ impl Default for CharacterSettings {
 }
 
 // ==========================================
+// AffectionVector（六维好感度）
+// ==========================================
+
+/// 单个角色对玩家的六维情感状态，各项取值 0~100。
+///
+/// 持久化在角色目录下的 `affection.yml`（跟随角色、跨存档共享，不随存档快照回滚）；
+/// 运行时挂在 `GameRole.affection` 上，由上帝 Agent 定期评估对话后调整。
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AffectionVector {
+    /// 好感：整体喜欢程度，影响语气甜度
+    pub fondness: i32,
+    /// 信赖：倾诉深度、说真心话的程度
+    pub trust: i32,
+    /// 亲密：肢体接触与近距离描写的接受度
+    pub intimacy: i32,
+    /// 默契：接梗、理解言外之意的程度
+    pub rapport: i32,
+    /// 兴趣：对玩家话题的好奇心、主动提问的倾向
+    pub interest: i32,
+    /// 思念：久别重逢的反应强度
+    pub longing: i32,
+}
+
+impl Default for AffectionVector {
+    fn default() -> Self {
+        Self {
+            fondness: 10,
+            trust: 5,
+            intimacy: 0,
+            rapport: 5,
+            interest: 15,
+            longing: 0,
+        }
+    }
+}
+
+impl AffectionVector {
+    pub const MIN: i32 = 0;
+    pub const MAX: i32 = 100;
+
+    /// 六维的（序列化键名, 中文显示名）。
+    pub const DIMENSIONS: [(&'static str, &'static str); 6] = [
+        ("fondness", "好感"),
+        ("trust", "信赖"),
+        ("intimacy", "亲密"),
+        ("rapport", "默契"),
+        ("interest", "兴趣"),
+        ("longing", "思念"),
+    ];
+
+    pub fn average(&self) -> i32 {
+        (self.fondness + self.trust + self.intimacy + self.rapport + self.interest + self.longing)
+            / 6
+    }
+
+    pub fn get(&self, dimension: &str) -> Option<i32> {
+        match dimension {
+            "fondness" => Some(self.fondness),
+            "trust" => Some(self.trust),
+            "intimacy" => Some(self.intimacy),
+            "rapport" => Some(self.rapport),
+            "interest" => Some(self.interest),
+            "longing" => Some(self.longing),
+            _ => None,
+        }
+    }
+
+    /// 按维度键名增减并钳制到 0~100；未知维度返回 false。
+    pub fn add_delta(&mut self, dimension: &str, delta: i32) -> bool {
+        let slot = match dimension {
+            "fondness" => &mut self.fondness,
+            "trust" => &mut self.trust,
+            "intimacy" => &mut self.intimacy,
+            "rapport" => &mut self.rapport,
+            "interest" => &mut self.interest,
+            "longing" => &mut self.longing,
+            _ => return false,
+        };
+        *slot = (*slot + delta).clamp(Self::MIN, Self::MAX);
+        true
+    }
+}
+
+// ==========================================
 // GameRole
 // ==========================================
 
@@ -597,6 +682,10 @@ pub struct GameRole {
     pub prompt: Option<String>,
     pub current_clothes: String,
     pub memory_bank: GameMemoryBank,
+    /// 对玩家的六维好感度（持久化在角色目录 `affection.yml`）。
+    pub affection: AffectionVector,
+    /// 角色目录（settings.yml 所在路径，好感度文件也写在这里）。
+    pub character_dir: Option<PathBuf>,
     pub voice_maker: Option<crate::ai_service::tts::VoiceMaker>,
 }
 

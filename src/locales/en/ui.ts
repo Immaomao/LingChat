@@ -487,6 +487,16 @@ export default {
     statusCompleted: "Completed",
     defaultWorkLabel: "Work",
   },
+  affection: {
+    title: "Affection",
+    noData: "No data yet",
+    fondness: "Fondness",
+    trust: "Trust",
+    intimacy: "Intimacy",
+    rapport: "Rapport",
+    interest: "Interest",
+    longing: "Longing",
+  },
   resourceSync: {
     totalChanges: "{count} changes in total",
     selectedCount: "{count} selected",

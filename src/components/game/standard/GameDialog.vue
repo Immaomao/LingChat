@@ -38,6 +38,19 @@
             </div>
           </Transition>
 
+          <!-- 好感度徽章：当前角色六维平均值；好感上升时高亮发光并飘出「+N」 -->
+          <div
+            v-show="!uiStore.isNarrowScreen && affectionAverage !== null"
+            class="affection-badge relative mx-2 inline-flex shrink-0 items-center gap-1 self-center"
+            :class="{ 'affection-badge--glow': affectionGlowing }"
+          >
+            <Heart :size="11" />
+            <span class="tabular-nums">{{ affectionAverage }}</span>
+            <span v-for="float in affectionFloats" :key="float.id" class="affection-float">
+              +{{ float.deltaSum }}
+            </span>
+          </div>
+
           <!-- 情绪标签 -->
           <div
             class="relative mx-4 shrink-0 font-[inherit] text-xl font-bold whitespace-nowrap text-[#ff77dd] text-shadow-[inherit]"
@@ -222,6 +235,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { Heart } from "lucide-vue-next";
 import { useTypeWriter } from "../../../composables/ui/useTypeWriter";
 import { setMobileMenuOpen, useAsrInput } from "../../../composables/useAsrInput";
 import { useChatInput } from "../../../composables/chat/useChatInput";
@@ -272,6 +286,38 @@ const currentStatus = computed(() => gameStore.currentStatus);
 // 标题栏（角色名 + 副标题）切换 key：任一变化时整体一起滑出/滑入
 const titleSubtitleKey = computed(
   () => `${uiStore.showCharacterTitle}|${uiStore.showCharacterSubtitle}`,
+);
+
+// ── 好感度徽章：当前角色六维平均值 + 上升高亮/飘字 ──
+const affectionAverage = computed(() => {
+  const a = gameStore.currentInteractRole?.affection;
+  if (!a) return null;
+  return Math.round((a.fondness + a.trust + a.intimacy + a.rapport + a.interest + a.longing) / 6);
+});
+
+const affectionGlowing = ref(false);
+const affectionFloats = ref<{ id: number; deltaSum: number }[]>([]);
+let affectionFloatId = 0;
+let affectionGlowTimer: number | null = null;
+
+watch(
+  () => gameStore.lastAffectionChange,
+  (change) => {
+    // 只高亮当前对话角色的正向变化；负向变化静默更新数值，不高亮
+    if (!change || change.roleId !== gameStore.currentInteractRoleId) return;
+    if (change.deltaSum <= 0) return;
+    affectionGlowing.value = true;
+    const id = ++affectionFloatId;
+    affectionFloats.value.push({ id, deltaSum: change.deltaSum });
+    window.setTimeout(() => {
+      affectionFloats.value = affectionFloats.value.filter((f) => f.id !== id);
+    }, 1500);
+    if (affectionGlowTimer !== null) window.clearTimeout(affectionGlowTimer);
+    affectionGlowTimer = window.setTimeout(() => {
+      affectionGlowing.value = false;
+      affectionGlowTimer = null;
+    }, 1500);
+  },
 );
 
 // 语音输入：useAsrInput 统一两种触发源（mic 按钮 / 自动监听），
@@ -658,6 +704,7 @@ onUnmounted(() => {
   // 动作打字机停止并释放（否则 setTimeout 循环可能继续跑）
   motionWriter?.destroy();
   motionWriter = null;
+  if (affectionGlowTimer !== null) window.clearTimeout(affectionGlowTimer);
   document.removeEventListener("contextmenu", handleDialogShow);
   window.removeEventListener("resize", updateContainerWidth);
   destroyScreenshot();
@@ -868,6 +915,54 @@ defineExpose({
 .title-slide-leave-to {
   transform: translateY(-100%);
   opacity: 0;
+}
+
+/* 好感度徽章：pill 样式同源 PluginTag；上升时文字变亮粉 + 光晕，「+N」向上飘出淡出 */
+.affection-badge {
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #ff9ec7;
+  background: rgba(255, 119, 170, 0.14);
+  border: 1px solid rgba(255, 119, 170, 0.35);
+  white-space: nowrap;
+  transition:
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    text-shadow 0.3s ease;
+}
+.affection-badge--glow {
+  color: #ffe0ee;
+  border-color: rgba(255, 158, 199, 0.8);
+  text-shadow:
+    0 0 6px rgba(255, 105, 180, 0.9),
+    0 0 14px rgba(255, 105, 180, 0.55);
+  box-shadow: 0 0 12px rgba(255, 119, 170, 0.45);
+}
+.affection-float {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  pointer-events: none;
+  font-weight: 700;
+  color: #ff8fc0;
+  text-shadow: 0 0 6px rgba(255, 105, 180, 0.8);
+  animation: affection-float-up 1.5s ease-out forwards;
+}
+@keyframes affection-float-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -18px);
+  }
 }
 </style>
 

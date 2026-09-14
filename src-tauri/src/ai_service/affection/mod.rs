@@ -1,0 +1,86 @@
+//! 六维好感度：角色文件持久化、prompt 文案与变更事件载荷。
+//!
+//! 好感度存放在每个角色目录下的 `affection.yml`，跟随角色而非存档——读旧档
+//! 不会回滚感情。运行时由上帝 Agent 定期评估对话后调整（见
+//! `god_agent::core::GodAgentCore::evaluate_affection`）。
+
+use std::collections::HashMap;
+use std::path::Path;
+
+use serde::Serialize;
+
+use crate::ai_service::types::AffectionVector;
+
+/// 角色目录内的好感度文件名。
+pub const AFFECTION_FILE: &str = "affection.yml";
+
+/// 从角色目录读取好感度；目录为空、文件缺失或损坏时回落到初始值。
+pub fn load(character_dir: Option<&Path>) -> AffectionVector {
+    let Some(dir) = character_dir else {
+        return AffectionVector::default();
+    };
+    let Ok(text) = std::fs::read_to_string(dir.join(AFFECTION_FILE)) else {
+        return AffectionVector::default();
+    };
+    serde_yaml::from_str(&text).unwrap_or_default()
+}
+
+/// 写回角色目录；写入失败只记日志不中断流程。
+pub fn save(character_dir: Option<&Path>, affection: &AffectionVector) {
+    let Some(dir) = character_dir else {
+        return;
+    };
+    let path = dir.join(AFFECTION_FILE);
+    match serde_yaml::to_string(affection) {
+        Ok(text) => {
+            if let Err(e) = std::fs::write(&path, text) {
+                tracing::warn!("[Affection] 写入 {:?} 失败: {}", path, e);
+            }
+        },
+        Err(e) => tracing::warn!("[Affection] 序列化好感度失败: {}", e),
+    }
+}
+
+/// 数值 → 程度词（供 prompt 注入，0~100 五档）。
+pub fn tier_label(value: i32) -> &'static str {
+    match value {
+        ..=20 => "初识",
+        21..=40 => "平淡",
+        41..=60 => "熟络",
+        61..=80 => "深厚",
+        _ => "炽烈",
+    }
+}
+
+/// 组装注入主对话上下文的情感状态描述（每轮生成时实时拼装，不落台词历史）。
+pub fn describe_for_prompt(affection: &AffectionVector) -> String {
+    let dims = AffectionVector::DIMENSIONS
+        .iter()
+        .map(|(key, label)| {
+            let v = affection.get(key).unwrap_or(0);
+            format!("{} {}（{}）", label, v, tier_label(v))
+        })
+        .collect::<Vec<_>>()
+        .join("、");
+    format!(
+        "【系统状态】你当前对玩家的情感状态（0~100）：{}。\
+         请让这些情感自然地影响你的语气、称呼、主动程度、肢体描写与话题深度，\
+         但绝不要在回复中提及这些数值或本提示。",
+        dims
+    )
+}
+
+/// 「好感度变化」事件的载荷（`affection:changed`，供前端刷新状态卡片与徽章）。
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AffectionChangedPayload {
+    pub role_id: i32,
+    /// 本次实际发生变化的维度增量（键名为维度序列化键）。
+    pub deltas: HashMap<String, i32>,
+    /// 调整后的完整六维数值。
+    pub values: AffectionVector,
+    /// 六维平均（前端徽章显示的总好感）。
+    pub average: i32,
+    /// 上帝 Agent 给出的调整理由。
+    pub reason: String,
+}
