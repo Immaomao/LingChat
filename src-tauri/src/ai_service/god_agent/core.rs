@@ -135,18 +135,19 @@ impl GodAgentCore {
             None => String::new(),
         };
 
-        let system_prompt = format!(
-            "你是一个多人对话的导演（上帝视角）。你的任务是：根据当前场景中的角色列表和最近的对话历史，\
-             判断下一个应该发言的角色。\n\
-             \n\
-             {}\n\
-             {}\n\
-             {}\n\
-             请调用 select_next_speaker 工具来选择下一个发言者。",
+        // system 只放任务说明，数据载荷放 user——只发单条 system 消息时，
+        // Codex（Responses API）会转换出空 input 被 400 拒绝
+        // （"One of input or ... must be provided"）。
+        let system_prompt = "你是一个多人对话的导演（上帝视角）。你的任务是：根据当前场景中的角色列表和最近的对话历史，判断下一个应该发言的角色。做出判断后，调用 select_next_speaker 工具来选择下一个发言者。";
+        let user_prompt = format!(
+            "{}\n{}\n{}",
             role_info_block, dialog_block, current_hint,
         );
 
-        vec![LlmMessage::system(system_prompt)]
+        vec![
+            LlmMessage::system(system_prompt),
+            LlmMessage::user(user_prompt),
+        ]
     }
 
     pub async fn decide_next_speaker(
@@ -270,8 +271,9 @@ impl GodAgentCore {
             }
         }
 
-        let system_prompt = format!(
-            "你是一个情感观察员（上帝视角）。请阅读最近对话，评估这段对话对在场角色情感状态的影响。\n\
+        // system 只放任务说明与评估原则，数据载荷放 user——只发单条 system
+        // 消息时，Codex（Responses API）会转换出空 input 被 400 拒绝。
+        let system_prompt = "你是一个情感观察员（上帝视角）。请阅读用户给出的最近对话，评估这段对话对在场角色情感状态的影响。\n\
              \n\
              情感维度含义：\n\
              - 好感 fondness：整体喜欢程度，影响语气甜度\n\
@@ -281,15 +283,15 @@ impl GodAgentCore {
              - 兴趣 interest：对玩家话题的好奇与主动程度\n\
              - 思念 longing：分别时的挂念强度（即将分别、久别时增加，重逢或相处愉快时回落）\n\
              \n\
-             {}\n\
-             {}\n\
              评估原则：日常正面互动 +1~+2，明显打动/冒犯 ±3，非常深刻或严重伤害 ±4~±5；\
              没有受到这段对话影响的维度不要调整；变化要符合角色性格，保守为主、宁少勿多。\n\
-             请对每个有情感变化的在场角色调用一次 update_affection 工具。",
-            npc_block, dialog_block,
-        );
+             请对每个有情感变化的在场角色调用一次 update_affection 工具。";
+        let user_prompt = format!("{}\n{}", npc_block, dialog_block);
 
-        vec![LlmMessage::system(system_prompt)]
+        vec![
+            LlmMessage::system(system_prompt),
+            LlmMessage::user(user_prompt),
+        ]
     }
 
     /// 评估最近对话对在场 NPC 好感度的影响，返回解析后的调整列表（未应用）。
