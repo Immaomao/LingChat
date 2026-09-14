@@ -496,6 +496,33 @@ export default {
     rapport: "Rapport",
     interest: "Interest",
     longing: "Longing",
+    average: "6-axis average",
+    recentChange: "Latest change",
+    nextTier: '{points} pts to "{tier}"',
+    maxTier: "Overflowing — max tier reached",
+    introTitle: "About affection",
+    introEval:
+      "Affection is adjusted automatically by periodic AI evaluations of your conversations.",
+    introPersist: "Values are saved with the character, shared across saves and not rolled back.",
+    introOverflow:
+      'Values may overflow: above 100 is "Overflowing" (vertex glows on the radar); below 0 is "Estranged" (shown in cold colors).',
+    tier: {
+      estranged: "Estranged",
+      acquainted: "Just Met",
+      plain: "Casual",
+      familiar: "Familiar",
+      deep: "Deep",
+      blazing: "Blazing",
+      overflow: "Overflowing",
+    },
+    dimDesc: {
+      fondness: "Overall liking; sweetens the tone of voice",
+      trust: "Depth of confiding and honest talk",
+      intimacy: "Acceptance of close distance and physical contact",
+      rapport: "Catching jokes and reading between the lines",
+      interest: "Curiosity about your topics; asks questions first",
+      longing: "Reaction strength when reunited after long apart",
+    },
   },
   resourceSync: {
     totalChanges: "{count} changes in total",

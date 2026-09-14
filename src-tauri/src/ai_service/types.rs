@@ -621,6 +621,7 @@ impl Default for AffectionVector {
 }
 
 impl AffectionVector {
+    /// 图表满刻度的参考上下限；数值本身允许溢出（>100 为满溢、负数为疏离）。
     pub const MIN: i32 = 0;
     pub const MAX: i32 = 100;
 
@@ -651,7 +652,8 @@ impl AffectionVector {
         }
     }
 
-    /// 按维度键名增减并钳制到 0~100；未知维度返回 false。
+    /// 按维度键名增减；数值**允许溢出**（不钳制 0~100，>100 为「满溢」、
+    /// 负数为「疏离」），未知维度返回 false。
     pub fn add_delta(&mut self, dimension: &str, delta: i32) -> bool {
         let slot = match dimension {
             "fondness" => &mut self.fondness,
@@ -662,7 +664,7 @@ impl AffectionVector {
             "longing" => &mut self.longing,
             _ => return false,
         };
-        *slot = (*slot + delta).clamp(Self::MIN, Self::MAX);
+        *slot = slot.saturating_add(delta);
         true
     }
 }

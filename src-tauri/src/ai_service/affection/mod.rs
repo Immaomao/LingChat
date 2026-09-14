@@ -41,14 +41,16 @@ pub fn save(character_dir: Option<&Path>, affection: &AffectionVector) {
     }
 }
 
-/// 数值 → 程度词（供 prompt 注入，0~100 五档）。
+/// 数值 → 程度词（供 prompt 注入；数值允许溢出：>100 满溢、负数疏离）。
 pub fn tier_label(value: i32) -> &'static str {
     match value {
-        ..=20 => "初识",
+        ..=-1 => "疏离",
+        0..=20 => "初识",
         21..=40 => "平淡",
         41..=60 => "熟络",
         61..=80 => "深厚",
-        _ => "炽烈",
+        81..=100 => "炽烈",
+        _ => "满溢",
     }
 }
 
@@ -63,7 +65,7 @@ pub fn describe_for_prompt(affection: &AffectionVector) -> String {
         .collect::<Vec<_>>()
         .join("、");
     format!(
-        "【系统状态】你当前对玩家的情感状态（0~100）：{}。\
+        "【系统状态】你当前对玩家的情感状态（数值越深越高，可超过 100 满溢，负数为疏离）：{}。\
          请让这些情感自然地影响你的语气、称呼、主动程度、肢体描写与话题深度，\
          但绝不要在回复中提及这些数值或本提示。",
         dims

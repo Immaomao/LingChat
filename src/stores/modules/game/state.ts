@@ -91,8 +91,14 @@ export interface GameState {
   currentScene: SceneInfo | null; // 当前加载的场景
   command: string | null;
 
-  /** 最近一次好感度变化（驱动对话标题徽章的高亮/飘字动画） */
-  lastAffectionChange: { roleId: number; deltaSum: number; at: number } | null;
+  /** 最近一次好感度变化（面板「最近变化」展示；deltas/reason 直接来自事件负载） */
+  lastAffectionChange: {
+    roleId: number;
+    deltaSum: number;
+    deltas: Record<string, number>;
+    reason: string;
+    at: number;
+  } | null;
 
   initialized: boolean;
   /** LoadingTransition 启动动画是否已完成（§1.9 门控：动画期间不启动 ASR） */

@@ -345,7 +345,7 @@ export function initializeTauriEventListeners() {
   // === Affection events ===
 
   // 六维好感度评估结果（几分钟一次、仅实际变化时发）：写回角色数据，
-  // 并记录 lastAffectionChange 驱动对话标题徽章的高亮/飘字动画
+  // 并记录 lastAffectionChange 供面板展示最近一次评估的变化维度与理由
   listen("affection:changed", (event) => {
     const payload = event.payload as AffectionChangedPayload;
     console.log("[Tauri] affection:changed", payload);
@@ -353,7 +353,13 @@ export function initializeTauriEventListeners() {
     const role = gameStore.gameRoles[payload.role_id];
     if (role) role.affection = payload.values;
     const deltaSum = Object.values(payload.deltas).reduce((sum, d) => sum + d, 0);
-    gameStore.lastAffectionChange = { roleId: payload.role_id, deltaSum, at: Date.now() };
+    gameStore.lastAffectionChange = {
+      roleId: payload.role_id,
+      deltaSum,
+      deltas: payload.deltas,
+      reason: payload.reason,
+      at: Date.now(),
+    };
   });
 
   // === Script events ===

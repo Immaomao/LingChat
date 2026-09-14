@@ -247,7 +247,7 @@ impl GodAgentCore {
                 .collect::<Vec<_>>()
                 .join("、");
             npc_block.push_str(&format!(
-                "- role_id={}: {}\n  简介: {}\n  设定: {}\n  当前情感（0~100）: {}\n",
+                "- role_id={}: {}\n  简介: {}\n  设定: {}\n  当前情感（数值可超过 100，负数为疏离）: {}\n",
                 npc.role_id,
                 npc.name,
                 if npc.subtitle.is_empty() {
