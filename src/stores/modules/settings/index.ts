@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS = {
     mergeMotionMode: "append" as const, // 台词合并时动作文本的处理方式：append=接在后面显示（| 分隔）/ replace=清空旧动作，独立显示本次动作
     sedentaryReminder: false, // 久坐喝水提醒
     fontFamily: "", // 自定义界面字体名（为空走系统默认栈；初始菜单/加载页不受影响）
-    vueDevToolsEnabled: true, // Vue DevTools 悬浮面板显示开关（仅开发模式生效，全局所有窗口）
+    vueDevToolsEnabled: true, // Vue DevTools 悬浮面板显示开关（仅开发模式生效，仅主窗口）
   },
   // 音频设置
   audio: {
