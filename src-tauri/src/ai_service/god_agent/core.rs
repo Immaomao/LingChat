@@ -6,7 +6,7 @@ use crate::ai_service::game_system::game_status::GameStatus;
 use crate::ai_service::god_agent::config::GodAgentConfig;
 use crate::ai_service::god_agent::tools;
 use crate::ai_service::llm::{LlmSlot, slot_snapshot};
-use crate::ai_service::types::{AffectionVector, GameLine, LlmMessage};
+use crate::ai_service::types::{AffectionVector, GameLine, LlmMessage, NegativeVector};
 
 // ============================================================
 // NpcAffectionView
@@ -19,8 +19,8 @@ pub struct NpcAffectionView {
     pub subtitle: String,
     pub info: String,
     pub current: AffectionVector,
-    /// 当前怀有的负面情绪标签（评估参考：安抚后应传空数组清除）。
-    pub mood_tags: Vec<String>,
+    /// 当前负面情绪六维强度（评估参考：安抚后应减回去）。
+    pub negative: NegativeVector,
 }
 
 // ============================================================
@@ -248,13 +248,13 @@ impl GodAgentCore {
                 .map(|(key, label)| format!("{} {}", label, npc.current.get(key).unwrap_or(0)))
                 .collect::<Vec<_>>()
                 .join("、");
-            let mood = if npc.mood_tags.is_empty() {
-                "无".to_string()
-            } else {
-                npc.mood_tags.join("、")
-            };
+            let neg_dims = NegativeVector::DIMENSIONS
+                .iter()
+                .map(|(key, label)| format!("{} {}", label, npc.negative.get(key).unwrap_or(0)))
+                .collect::<Vec<_>>()
+                .join("、");
             npc_block.push_str(&format!(
-                "- role_id={}: {}\n  简介: {}\n  设定: {}\n  当前情感（数值可超过 100，负数为疏离）: {}\n  当前负面情绪标签: {}\n",
+                "- role_id={}: {}\n  简介: {}\n  设定: {}\n  当前情感（数值可超过 100，负数为疏离）: {}\n  当前负面情绪（0 为无，越高越强烈）: {}\n",
                 npc.role_id,
                 npc.name,
                 if npc.subtitle.is_empty() {
@@ -264,7 +264,7 @@ impl GodAgentCore {
                 },
                 if npc.info.is_empty() { "无" } else { &npc.info },
                 dims,
-                mood,
+                neg_dims,
             ));
         }
 
@@ -283,7 +283,7 @@ impl GodAgentCore {
         // 消息时，Codex（Responses API）会转换出空 input 被 400 拒绝。
         let system_prompt = "你是一个情感观察员（上帝视角）。请阅读用户给出的最近对话，评估这段对话对在场角色情感状态的影响。\n\
              \n\
-             情感维度含义：\n\
+             好感维度含义：\n\
              - 好感 fondness：整体喜欢程度，影响语气甜度\n\
              - 信赖 trust：愿意倾诉与说真心话的程度\n\
              - 亲密 intimacy：对肢体接触/近距离互动的接受度\n\
@@ -291,11 +291,18 @@ impl GodAgentCore {
              - 兴趣 interest：对玩家话题的好奇与主动程度\n\
              - 思念 longing：分别时的挂念强度（即将分别、久别时增加，重逢或相处愉快时回落）\n\
              \n\
+             负面情绪维度含义（0 为无，越高越强烈，下限 0）：\n\
+             - 愤怒 anger：被冒犯时的火气\n\
+             - 受伤 hurt：被刺痛、委屈\n\
+             - 失望 disappointment：期待落空\n\
+             - 冷漠 indifference：敷衍、不在乎的态度\n\
+             - 嫉妒 jealousy：玩家关注别人时的吃醋\n\
+             - 疏远 estrangement：想保持距离\n\
+             \n\
              评估原则：日常正面互动 +1~+2，明显打动/冒犯 ±3，非常深刻或严重伤害 ±4~±5；\
              没有受到这段对话影响的维度不要调整；变化要符合角色性格，保守为主、宁少勿多。\n\
-             负面情绪标签：这段对话若给角色带来明显负面情绪（被冒犯、被忽视、被伤害等），\
-             用 mood_tags 标记 1~3 个简短中文词；若角色之前怀有的负面情绪在这段对话中被安抚或消解，\
-             传空数组清除；没有变化则不填。\n\
+             负面情绪：被冒犯/忽视/伤害时用 negative_deltas 增加对应维度；\
+             被安抚/取悦/温柔对待时减少对应维度（往 0 消解）；没有变化则不填。\n\
              请对每个有情感变化的在场角色调用一次 update_affection 工具。";
         let user_prompt = format!("{}\n{}", npc_block, dialog_block);
 

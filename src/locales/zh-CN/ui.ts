@@ -486,8 +486,11 @@ export default {
     introPersist: "数值跟随角色保存，跨存档共享，不随存档回滚。",
     introOverflow:
       "数值允许溢出：超过 100 为「满溢」，雷达图顶点发光；低于 0 为「疏离」，以冷色显示。",
-    moodTitle: "当前情绪",
-    introMood: "负面情绪标签会被记录并影响角色态度，安抚后即可消除。",
+    negativeTitle: "当前负面情绪",
+    radarAffection: "好感维度",
+    radarNegative: "负面情绪",
+    introNegative:
+      "负面情绪分六个维度，被冒犯或伤害时累积、安抚后消解；任一维度过强都会影响角色的态度与语气。",
     tier: {
       estranged: "疏离",
       acquainted: "初识",
@@ -504,6 +507,22 @@ export default {
       rapport: "接梗、理解言外之意的程度",
       interest: "对玩家话题的好奇心、主动提问的倾向",
       longing: "久别重逢的反应强度",
+    },
+    neg: {
+      anger: "愤怒",
+      hurt: "受伤",
+      disappointment: "失望",
+      indifference: "冷漠",
+      jealousy: "嫉妒",
+      estrangement: "疏远",
+    },
+    negDesc: {
+      anger: "被冒犯时的怒气强度",
+      hurt: "被伤害后的在意程度",
+      disappointment: "期待落空累积的失望",
+      indifference: "心灰意冷时的冷淡程度",
+      jealousy: "吃醋与占有欲被触发的程度",
+      estrangement: "想要疏远玩家的倾向",
     },
   },
   resourceSync: {

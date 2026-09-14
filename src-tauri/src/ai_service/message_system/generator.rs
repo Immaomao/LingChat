@@ -261,9 +261,9 @@ impl MessageGenerator {
         };
         let role = gs.get_role(&self.deps.db, rid).await?;
         let mut context = role.memory.clone();
-        // 注入当前角色对玩家的情感状态与负面情绪标签（每轮实时拼装，不落台词历史）
+        // 注入当前角色对玩家的情感状态与负面情绪（每轮实时拼装，不落台词历史）
         context.push(LlmMessage::system(
-            crate::ai_service::affection::describe_for_prompt(&role.affection, &role.mood_tags),
+            crate::ai_service::affection::describe_for_prompt(&role.affection, &role.negative),
         ));
         Ok(context)
     }
@@ -462,7 +462,7 @@ impl MessageGenerator {
                         subtitle: r.settings.ai_subtitle.clone().unwrap_or_default(),
                         info: r.settings.info.clone().unwrap_or_default(),
                         current: r.affection,
-                        mood_tags: r.mood_tags.clone(),
+                        negative: r.negative,
                     })
                 })
                 .collect::<Vec<_>>();
@@ -493,19 +493,20 @@ impl MessageGenerator {
                     }
                     let mut gs = game_status.lock().await;
                     for adj in adjustments {
-                        let Some((values, mood_tags)) = gs.role_manager.adjust_affection(
+                        let Some((values, negative)) = gs.role_manager.adjust_affection(
                             adj.role_id,
                             &adj.deltas,
-                            adj.mood_tags,
+                            &adj.negative_deltas,
                         ) else {
                             continue;
                         };
                         let payload = AffectionChangedPayload {
                             role_id: adj.role_id,
                             deltas: adj.deltas.iter().cloned().collect(),
+                            negative_deltas: adj.negative_deltas.iter().cloned().collect(),
                             average: values.average(),
                             values,
-                            mood_tags,
+                            negative,
                             reason: adj.reason,
                         };
                         tracing::info!(

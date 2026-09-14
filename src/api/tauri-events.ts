@@ -353,13 +353,14 @@ export function initializeTauriEventListeners() {
     const role = gameStore.gameRoles[payload.role_id];
     if (role) {
       role.affection = payload.values;
-      role.moodTags = payload.mood_tags;
+      role.negative = payload.negative;
     }
     const deltaSum = Object.values(payload.deltas).reduce((sum, d) => sum + d, 0);
     gameStore.lastAffectionChange = {
       roleId: payload.role_id,
       deltaSum,
       deltas: payload.deltas,
+      negativeDeltas: payload.negative_deltas,
       reason: payload.reason,
       at: Date.now(),
     };

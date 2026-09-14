@@ -478,8 +478,11 @@ export default {
     introPersist: "數值跟住角色保存，跨存檔共享，唔會隨存檔回滾。",
     introOverflow:
       "數值允許溢出：超過 100 為「滿溢」，雷達圖頂點發光；低過 0 為「疏離」，以冷色顯示。",
-    moodTitle: "當前情緒",
-    introMood: "負面情緒標籤會被記錄並影響角色態度，安撫後即可消除。",
+    negativeTitle: "當前負面情緒",
+    radarAffection: "好感維度",
+    radarNegative: "負面情緒",
+    introNegative:
+      "負面情緒分六個維度，被冒犯或傷害時累積、安撫後消解；任何一維太強都會影響角色嘅態度同語氣。",
     tier: {
       estranged: "疏離",
       acquainted: "初識",
@@ -496,6 +499,22 @@ export default {
       rapport: "接梗、理解言外之意嘅程度",
       interest: "對玩家話題嘅好奇心、主動提問嘅傾向",
       longing: "久別重逢嘅反應強度",
+    },
+    neg: {
+      anger: "憤怒",
+      hurt: "受傷",
+      disappointment: "失望",
+      indifference: "冷漠",
+      jealousy: "嫉妒",
+      estrangement: "疏遠",
+    },
+    negDesc: {
+      anger: "被冒犯時嘅怒氣強度",
+      hurt: "受傷害後嘅在意程度",
+      disappointment: "期待落空累積嘅失望",
+      indifference: "心灰意冷時嘅冷淡程度",
+      jealousy: "呷醋同占有欲被觸發嘅程度",
+      estrangement: "想疏遠玩家嘅傾向",
     },
   },
   resourceSync: {

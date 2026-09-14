@@ -47,6 +47,16 @@ export interface AffectionVector {
   longing: number;
 }
 
+/** 负面六维向量（与 Rust NegativeVector 同 snake_case 键名），下限 0、允许超 100 */
+export interface NegativeVector {
+  anger: number;
+  hurt: number;
+  disappointment: number;
+  indifference: number;
+  jealousy: number;
+  estrangement: number;
+}
+
 export interface GameRole {
   roleId: number;
   roleName: string;
@@ -70,8 +80,8 @@ export interface GameRole {
   character_folder: string;
   /** 对玩家的六维好感度（init 数据携带，affection:changed 事件刷新；未加载时为 undefined） */
   affection?: AffectionVector;
-  /** 负面情绪标签全集（评估打标、安抚清空，随 affection 同源刷新；未加载时为 undefined） */
-  moodTags?: string[];
+  /** 负面六维（被冒犯/伤害时增加、安抚时减少，随 affection 同源刷新；未加载时为 undefined） */
+  negative?: NegativeVector;
 }
 
 export interface GameState {
@@ -98,6 +108,8 @@ export interface GameState {
     roleId: number;
     deltaSum: number;
     deltas: Record<string, number>;
+    /** 负面六维的本轮增量（键名为负面维度序列化键） */
+    negativeDeltas: Record<string, number>;
     reason: string;
     at: number;
   } | null;

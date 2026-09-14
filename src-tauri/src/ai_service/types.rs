@@ -671,6 +671,93 @@ impl AffectionVector {
 }
 
 // ==========================================
+// NegativeVector（六维负面情绪）
+// ==========================================
+
+/// 单个角色对玩家的六维负面情绪强度，取值任意整数（>100 为「失控」边缘）。
+///
+/// 与好感度同存于角色目录 `affection.yml`；正面互动会消解、冒犯会积累，
+/// 由上帝 Agent 与好感度同一次评估调整。
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NegativeVector {
+    /// 愤怒：被冒犯时的火气
+    pub anger: i32,
+    /// 受伤：被刺痛、委屈的程度
+    pub hurt: i32,
+    /// 失望：期待落空的程度
+    pub disappointment: i32,
+    /// 冷漠：敷衍、不在乎的态度强度
+    pub indifference: i32,
+    /// 嫉妒：玩家关注别人时的吃醋程度
+    pub jealousy: i32,
+    /// 疏远：想保持距离的程度
+    pub estrangement: i32,
+}
+
+impl Default for NegativeVector {
+    fn default() -> Self {
+        Self {
+            anger: 0,
+            hurt: 0,
+            disappointment: 0,
+            indifference: 0,
+            jealousy: 0,
+            estrangement: 0,
+        }
+    }
+}
+
+impl NegativeVector {
+    /// 六维的（序列化键名, 中文显示名）。
+    pub const DIMENSIONS: [(&'static str, &'static str); 6] = [
+        ("anger", "愤怒"),
+        ("hurt", "受伤"),
+        ("disappointment", "失望"),
+        ("indifference", "冷漠"),
+        ("jealousy", "嫉妒"),
+        ("estrangement", "疏远"),
+    ];
+
+    /// 六维中的最大强度（全 0 表示没有负面情绪）。
+    pub fn peak(&self) -> i32 {
+        self.anger
+            .max(self.hurt)
+            .max(self.disappointment)
+            .max(self.indifference)
+            .max(self.jealousy)
+            .max(self.estrangement)
+    }
+
+    pub fn get(&self, dimension: &str) -> Option<i32> {
+        match dimension {
+            "anger" => Some(self.anger),
+            "hurt" => Some(self.hurt),
+            "disappointment" => Some(self.disappointment),
+            "indifference" => Some(self.indifference),
+            "jealousy" => Some(self.jealousy),
+            "estrangement" => Some(self.estrangement),
+            _ => None,
+        }
+    }
+
+    /// 按维度键名增减；下限 0（负面情绪不会跌成负值），上限不封（允许溢出）。
+    pub fn add_delta(&mut self, dimension: &str, delta: i32) -> bool {
+        let slot = match dimension {
+            "anger" => &mut self.anger,
+            "hurt" => &mut self.hurt,
+            "disappointment" => &mut self.disappointment,
+            "indifference" => &mut self.indifference,
+            "jealousy" => &mut self.jealousy,
+            "estrangement" => &mut self.estrangement,
+            _ => return false,
+        };
+        *slot = slot.saturating_add(delta).max(0);
+        true
+    }
+}
+
+// ==========================================
 // GameRole
 // ==========================================
 
@@ -687,9 +774,8 @@ pub struct GameRole {
     pub memory_bank: GameMemoryBank,
     /// 对玩家的六维好感度（持久化在角色目录 `affection.yml`）。
     pub affection: AffectionVector,
-    /// 对玩家怀有的负面情绪标签（如「生气」「受伤」；评估产生、安抚消除，
-    /// 与好感度同文件持久化）。
-    pub mood_tags: Vec<String>,
+    /// 对玩家的六维负面情绪强度（同源 `affection.yml`；评估积累、安抚消解）。
+    pub negative: NegativeVector,
     /// 角色目录（settings.yml 所在路径，好感度文件也写在这里）。
     pub character_dir: Option<PathBuf>,
     pub voice_maker: Option<crate::ai_service::tts::VoiceMaker>,

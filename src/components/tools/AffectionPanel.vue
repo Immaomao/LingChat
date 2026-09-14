@@ -18,7 +18,7 @@
       </h3>
     </Button>
 
-    <!-- 日程式弹窗：全屏遮罩 + 居中窗口 -->
+    <!-- 日程式弹窗：全屏遮罩 + 居中窗口（双雷达，宽屏 880px / 窄屏近全宽） -->
     <Teleport to="body">
       <Transition
         enter-active-class="transition-all duration-300 cubic-bezier(0.2, 0.8, 0.2, 1)"
@@ -40,7 +40,7 @@
             <div
               v-if="enabled"
               class="relative flex max-h-[85dvh] flex-col overflow-hidden rounded-3xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
-              :class="uiStore.isNarrowScreen ? 'w-[95vw]' : 'w-130'"
+              :class="uiStore.isNarrowScreen ? 'w-[95vw]' : 'w-220'"
             >
               <!-- Header bar -->
               <div
@@ -71,7 +71,7 @@
               <div
                 class="min-h-0 flex-1 scrollbar-thin [scrollbar-color:var(--accent-color)_transparent] overflow-y-auto rounded-b-3xl bg-[#12121c]/75 p-5 text-white backdrop-blur-[20px]"
               >
-                <!-- 只显示当前对话角色；切换角色时旧内容淡出、新内容淡入 -->
+                <!-- 只显示当前对话角色；切换角色时旧内容淡出、新内容淡入（雷达子组件随 key 重挂载） -->
                 <Transition name="affection-role" mode="out-in">
                   <div :key="role?.roleId ?? 'none'">
                     <template v-if="affection">
@@ -104,7 +104,10 @@
                           </span>
                           <span
                             class="affection-tier-badge"
-                            :class="{ 'affection-tier-pulse': tier === 'overflow' }"
+                            :class="{
+                              'affection-tier-pulse': tier === 'overflow',
+                              'affection-tier-alert': negativePeak > 60,
+                            }"
                             :style="tierBadgeStyle"
                           >
                             {{ $t(`ui.affection.tier.${tier}`) }}
@@ -112,17 +115,21 @@
                         </div>
                       </div>
 
-                      <!-- 当前情绪：仅存在负面情绪标签时显示（暗红/玫红系，区别于增量粉芯片） -->
+                      <!-- 当前负面情绪：由负面六维派生（强度 > 30 的维度），暗红系芯片 -->
                       <div
-                        v-if="moodTags.length > 0"
+                        v-if="negativeChips.length > 0"
                         class="mt-3 flex flex-wrap items-center gap-2"
                       >
                         <span class="flex items-center gap-1 text-xs text-white/50">
                           <CloudRain :size="12" />
-                          {{ $t("ui.affection.moodTitle") }}
+                          {{ $t("ui.affection.negativeTitle") }}
                         </span>
-                        <span v-for="tag in moodTags" :key="tag" class="affection-mood-chip">
-                          {{ tag }}
+                        <span
+                          v-for="chip in negativeChips"
+                          :key="chip.key"
+                          class="affection-neg-chip"
+                        >
+                          {{ $t(`ui.affection.neg.${chip.key}`) }} {{ chip.value }}
                         </span>
                       </div>
 
@@ -154,108 +161,26 @@
                         {{ $t("ui.affection.maxTier") }}
                       </div>
 
-                      <!-- 六维雷达图 -->
-                      <svg class="mt-1 block w-full" viewBox="0 0 400 360">
-                        <defs>
-                          <linearGradient
-                            id="affection-gradient"
-                            x1="0%"
-                            y1="0%"
-                            x2="100%"
-                            y2="100%"
-                          >
-                            <stop offset="0%" stop-color="#ff5c8a" />
-                            <stop offset="100%" stop-color="#ff9ec7" />
-                          </linearGradient>
-                        </defs>
-
-                        <!-- 参考环（25/50/75 虚线 + 100 满刻度淡色实线） -->
-                        <polygon
-                          v-for="ring in [0.25, 0.5, 0.75]"
-                          :key="ring"
-                          class="fill-none stroke-white/10"
-                          stroke-dasharray="4 4"
-                          :points="ringPoints(ring)"
+                      <!-- 双雷达：左好感 / 右负面；窄屏上下堆叠（窗口内容区可滚动） -->
+                      <div class="mt-2 flex flex-col gap-2 md:flex-row md:gap-4">
+                        <AffectionRadar
+                          :title="$t('ui.affection.radarAffection')"
+                          :values="affectionValues"
+                          :labels="affectionLabels"
+                          :descs="affectionDescs"
+                          :palette="affectionPalette"
                         />
-                        <polygon class="fill-none stroke-white/15" :points="ringPoints(1)" />
-                        <!-- 轴线 -->
-                        <line
-                          v-for="i in 6"
-                          :key="`axis-${i}`"
-                          class="stroke-white/10"
-                          :x1="CX"
-                          :y1="CY"
-                          :x2="pointAt(i - 1, R).x"
-                          :y2="pointAt(i - 1, R).y"
+                        <AffectionRadar
+                          v-if="negative"
+                          :title="$t('ui.affection.radarNegative')"
+                          :values="negativeValues"
+                          :labels="negativeLabels"
+                          :descs="negativeDescs"
+                          :palette="negativePalette"
                         />
-
-                        <!-- 数据多边形 -->
-                        <polygon
-                          class="affection-data-polygon"
-                          :points="dataPolygonPoints"
-                          fill="url(#affection-gradient)"
-                        />
-
-                        <!-- 顶点圆点（>100 满溢：外层脉冲高亮光晕；<0 疏离：冷色） -->
-                        <g v-for="(p, i) in dataPoints" :key="`vertex-${i}`">
-                          <circle
-                            v-if="displayValues[i] > 100"
-                            :cx="p.x"
-                            :cy="p.y"
-                            r="6"
-                            class="affection-vertex-halo"
-                          />
-                          <circle
-                            :cx="p.x"
-                            :cy="p.y"
-                            r="3.5"
-                            :class="vertexFillClass(displayValues[i])"
-                          />
-                          <!-- 加宽 hover 热区 -->
-                          <circle
-                            :cx="p.x"
-                            :cy="p.y"
-                            r="12"
-                            class="cursor-pointer fill-transparent"
-                            @mouseenter="hoveredDim = dimensions[i].key"
-                            @mouseleave="hoveredDim = null"
-                          />
-                        </g>
-
-                        <!-- 轴端标注：维度名 + 真实数值（可溢出/为负） -->
-                        <text
-                          v-for="(label, i) in axisLabels"
-                          :key="`label-${i}`"
-                          :x="label.x"
-                          :y="label.y"
-                          :text-anchor="label.anchor"
-                          class="cursor-default fill-white/60 text-[11px]"
-                          @mouseenter="hoveredDim = dimensions[i].key"
-                          @mouseleave="hoveredDim = null"
-                        >
-                          {{ $t(`ui.affection.${dimensions[i].key}`) }}
-                          <tspan
-                            :x="label.x"
-                            dy="14"
-                            class="text-[12px] font-bold"
-                            :class="valueFillClass(displayValues[i])"
-                            :style="valueGlowStyle(displayValues[i])"
-                          >
-                            {{ Math.round(displayValues[i]) }}
-                          </tspan>
-                        </text>
-                      </svg>
-
-                      <!-- hover 顶点/标注时显示维度说明 -->
-                      <div class="h-4 text-center text-xs text-white/50">
-                        <template v-if="hoveredDim">
-                          {{ $t(`ui.affection.${hoveredDim}`) }}：{{
-                            $t(`ui.affection.dimDesc.${hoveredDim}`)
-                          }}
-                        </template>
                       </div>
 
-                      <!-- 最近一次评估变化 -->
+                      <!-- 最近一次评估变化（好感增量 + 负面增量并列；负面向增暗红、向减青绿=消解） -->
                       <div
                         v-if="recentChange"
                         class="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3"
@@ -266,11 +191,20 @@
                         <div class="flex flex-wrap gap-1.5">
                           <span
                             v-for="entry in recentChange.entries"
-                            :key="entry.key"
+                            :key="`pos-${entry.key}`"
                             class="affection-delta-chip"
                             :class="entry.delta > 0 ? 'affection-delta-up' : 'affection-delta-down'"
                           >
                             {{ $t(`ui.affection.${entry.key}`) }}
+                            {{ entry.delta > 0 ? "+" : "" }}{{ entry.delta }}
+                          </span>
+                          <span
+                            v-for="entry in recentChange.negEntries"
+                            :key="`neg-${entry.key}`"
+                            class="affection-delta-chip"
+                            :class="entry.delta > 0 ? 'affection-neg-up' : 'affection-neg-down'"
+                          >
+                            {{ $t(`ui.affection.neg.${entry.key}`) }}
                             {{ entry.delta > 0 ? "+" : "" }}{{ entry.delta }}
                           </span>
                         </div>
@@ -314,10 +248,17 @@
                             · <span class="text-white/70">{{ $t(`ui.affection.${dim.key}`) }}</span
                             >：{{ $t(`ui.affection.dimDesc.${dim.key}`) }}
                           </div>
+                          <div v-for="dim in negDimensions" :key="`neg-desc-${dim.key}`">
+                            ·
+                            <span class="text-white/70">{{
+                              $t(`ui.affection.neg.${dim.key}`)
+                            }}</span
+                            >：{{ $t(`ui.affection.negDesc.${dim.key}`) }}
+                          </div>
                           <div class="mt-1">{{ $t("ui.affection.introEval") }}</div>
                           <div>{{ $t("ui.affection.introPersist") }}</div>
                           <div>{{ $t("ui.affection.introOverflow") }}</div>
-                          <div>{{ $t("ui.affection.introMood") }}</div>
+                          <div>{{ $t("ui.affection.introNegative") }}</div>
                         </div>
                       </Transition>
                     </div>
@@ -333,17 +274,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { Heart, ChevronDown, CloudRain } from "lucide-vue-next";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { useI18n } from "vue-i18n";
 import Button from "../base/widget/Button.vue";
+import AffectionRadar from "./AffectionRadar.vue";
+import type { RadarPalette } from "./AffectionRadar.vue";
 import { useGameStore } from "../../stores/modules/game";
 import { useUIStore } from "@/stores/modules/ui/ui";
 import { avatarFolderParams } from "@/composables/role/useRoleAvatar";
 import { getAvatarFile } from "@/api/services/character";
 import { getAffection } from "@/api/services/affection";
-import type { AffectionVector } from "@/stores/modules/game/state";
+import type { AffectionVector, NegativeVector } from "@/stores/modules/game/state";
 
+const { t } = useI18n();
 const gameStore = useGameStore();
 const uiStore = useUIStore();
 
@@ -359,8 +304,7 @@ function close() {
 
 const role = computed(() => gameStore.currentInteractRole);
 const affection = computed(() => role.value?.affection ?? null);
-/** 当前角色的负面情绪标签（无标签时整个「当前情绪」区不渲染） */
-const moodTags = computed(() => role.value?.moodTags ?? []);
+const negative = computed(() => role.value?.negative ?? null);
 
 type DimKey = keyof AffectionVector;
 const dimensions: { key: DimKey }[] = [
@@ -371,6 +315,54 @@ const dimensions: { key: DimKey }[] = [
   { key: "interest" },
   { key: "longing" },
 ];
+type NegDimKey = keyof NegativeVector;
+const negDimensions: { key: NegDimKey }[] = [
+  { key: "anger" },
+  { key: "hurt" },
+  { key: "disappointment" },
+  { key: "indifference" },
+  { key: "jealousy" },
+  { key: "estrangement" },
+];
+
+// ── 雷达图输入（labels/descs 随界面语言重算；values 数组重建驱动子组件补间） ──
+const affectionValues = computed<number[]>(() => {
+  const a = affection.value;
+  if (!a) return [0, 0, 0, 0, 0, 0];
+  return [a.fondness, a.trust, a.intimacy, a.rapport, a.interest, a.longing];
+});
+const negativeValues = computed<number[]>(() => {
+  const n = negative.value;
+  if (!n) return [0, 0, 0, 0, 0, 0];
+  return [n.anger, n.hurt, n.disappointment, n.indifference, n.jealousy, n.estrangement];
+});
+const affectionLabels = computed(() => dimensions.map((d) => t(`ui.affection.${d.key}`)));
+const affectionDescs = computed(() => dimensions.map((d) => t(`ui.affection.dimDesc.${d.key}`)));
+const negativeLabels = computed(() => negDimensions.map((d) => t(`ui.affection.neg.${d.key}`)));
+const negativeDescs = computed(() => negDimensions.map((d) => t(`ui.affection.negDesc.${d.key}`)));
+
+/** 好感雷达：粉色系 */
+const affectionPalette: RadarPalette = {
+  gradientFrom: "#ff5c8a",
+  gradientTo: "#ff9ec7",
+  stroke: "#ff5c8a",
+  vertex: "#ff9ec7",
+  vertexOverflow: "#ffd7e8",
+  halo: "rgba(255, 92, 138, 0.35)",
+  glow: "rgba(255, 92, 138, 0.9)",
+  cold: "#7fc4ff",
+};
+/** 负面雷达：暗红/玫红/暗紫系 */
+const negativePalette: RadarPalette = {
+  gradientFrom: "#e0416e",
+  gradientTo: "#7c5cbf",
+  stroke: "#e0416e",
+  vertex: "#e88aa8",
+  vertexOverflow: "#ffc4d6",
+  halo: "rgba(224, 65, 110, 0.4)",
+  glow: "rgba(224, 65, 110, 0.9)",
+  cold: "#7fc4ff",
+};
 
 // ── 平均值与档位 ─────────────────────────────────────
 const average = computed(() => {
@@ -439,104 +431,20 @@ const nextTierInfo = computed((): { key: TierKey; points: number; progress: numb
   return { key: nextKey, points: Math.max(0, need - v), progress };
 });
 
-// ── 雷达图几何（100 满刻度；溢出/负值仅钳渲染半径，数值照实显示） ──
-const CX = 200;
-const CY = 180;
-const R = 115;
-const LABEL_R = 143;
-
-const angleFor = (i: number) => -Math.PI / 2 + (i * Math.PI * 2) / 6;
-const pointAt = (i: number, radius: number) => ({
-  x: CX + radius * Math.cos(angleFor(i)),
-  y: CY + radius * Math.sin(angleFor(i)),
+// ── 当前负面情绪 chips：强度 > 30 的负面维度；峰值 > 60 时档位徽章红色警示 ──
+const negativeChips = computed(() => {
+  const n = negative.value;
+  if (!n) return [];
+  return negDimensions
+    .filter((d) => n[d.key] > 30)
+    .map((d) => ({ key: d.key, value: Math.round(n[d.key]) }));
 });
-const ringPoints = (fraction: number) =>
-  Array.from({ length: 6 }, (_, i) => {
-    const p = pointAt(i, R * fraction);
-    return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-  }).join(" ");
-
-const clampRadius = (v: number) => Math.min(100, Math.max(0, v));
-
-/** 展示用数值（tween 动画的当前帧），真实数值可能超出 0~100 */
-const displayValues = ref<number[]>([0, 0, 0, 0, 0, 0]);
-const dataPoints = computed(() =>
-  displayValues.value.map((v, i) => pointAt(i, (clampRadius(v) / 100) * R)),
-);
-const dataPolygonPoints = computed(() =>
-  dataPoints.value.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "),
-);
-
-const axisLabels = computed(() =>
-  dimensions.map((_, i) => {
-    const p = pointAt(i, LABEL_R);
-    const cos = Math.cos(angleFor(i));
-    return {
-      x: Number(p.x.toFixed(1)),
-      y: Number(p.y.toFixed(1)),
-      anchor:
-        Math.abs(cos) < 0.3 ? ("middle" as const) : cos > 0 ? ("start" as const) : ("end" as const),
-    };
-  }),
-);
-
-const vertexFillClass = (v: number) =>
-  v > 100 ? "fill-[#ffd7e8]" : v < 0 ? "fill-[#7fc4ff]" : "fill-[#ff9ec7]";
-const valueFillClass = vertexFillClass;
-const valueGlowStyle = (v: number) =>
-  v > 100 ? "filter: drop-shadow(0 0 4px rgba(255, 92, 138, 0.9))" : undefined;
-
-// ── 数值 tween：变化时 600ms 缓动过渡；切换角色时直接吸附 ──
-const targetValues = computed<number[]>(() => {
-  const a = affection.value;
-  if (!a) return [0, 0, 0, 0, 0, 0];
-  return [a.fondness, a.trust, a.intimacy, a.rapport, a.interest, a.longing];
+const negativePeak = computed(() => {
+  const n = negative.value;
+  return n ? Math.max(...Object.values(n)) : 0;
 });
 
-let rafId: number | null = null;
-let lastRoleId: number | null = null;
-
-function cancelTween() {
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-}
-
-function tweenTo(target: number[]) {
-  cancelTween();
-  const from = [...displayValues.value];
-  const t0 = performance.now();
-  const duration = 600;
-  const step = (t: number) => {
-    const p = Math.min(1, (t - t0) / duration);
-    const eased = 1 - Math.pow(1 - p, 3);
-    displayValues.value = from.map((f, i) => f + (target[i] - f) * eased);
-    rafId = p < 1 ? requestAnimationFrame(step) : null;
-  };
-  rafId = requestAnimationFrame(step);
-}
-
-watch(
-  [() => role.value?.roleId ?? null, targetValues],
-  ([rid, target]) => {
-    if (rid !== lastRoleId) {
-      lastRoleId = rid;
-      cancelTween();
-      displayValues.value = [...target];
-    } else {
-      tweenTo(target);
-    }
-  },
-  { immediate: true },
-);
-
-onUnmounted(cancelTween);
-
-// ── 顶点/标注 hover：显示维度说明 ──
-const hoveredDim = ref<DimKey | null>(null);
-
-// ── 最近一次评估变化（仅展示当前角色的） ──
+// ── 最近一次评估变化（仅展示当前角色的；好感增量 + 负面增量） ──
 const recentChange = computed(() => {
   const c = gameStore.lastAffectionChange;
   const r = role.value;
@@ -544,7 +452,11 @@ const recentChange = computed(() => {
   const entries = dimensions
     .filter((d) => typeof c.deltas[d.key] === "number" && c.deltas[d.key] !== 0)
     .map((d) => ({ key: d.key, delta: c.deltas[d.key] }));
-  return { entries, reason: c.reason };
+  const negEntries = negDimensions
+    .filter((d) => typeof c.negativeDeltas[d.key] === "number" && c.negativeDeltas[d.key] !== 0)
+    .map((d) => ({ key: d.key, delta: c.negativeDeltas[d.key] }));
+  if (entries.length === 0 && negEntries.length === 0 && !c.reason) return null;
+  return { entries, negEntries, reason: c.reason };
 });
 
 // 头像解析：复用 useRoleAvatar 的归一化纯函数，情绪固定「头像」（getAvatarFile 内部处理）
@@ -592,7 +504,7 @@ watch(enabled, async (v) => {
       const r = gameStore.gameRoles[Number(roleId)];
       if (r) {
         r.affection = values;
-        r.moodTags = values.mood_tags;
+        r.negative = values.negative;
       }
     }
   } catch (e) {
@@ -618,34 +530,7 @@ watch(enabled, async (v) => {
   transform: translateY(-4px);
 }
 
-/* 数据多边形：渐变填充 + 粉色描边 */
-.affection-data-polygon {
-  fill-opacity: 0.35;
-  stroke: #ff5c8a;
-  stroke-width: 2;
-  stroke-linejoin: round;
-}
-
-/* 满溢顶点（>100，钳在满刻度边缘）的发光脉冲光晕 */
-.affection-vertex-halo {
-  fill: rgba(255, 92, 138, 0.35);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: affection-vertex-pulse 1.6s ease-in-out infinite;
-}
-@keyframes affection-vertex-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.7);
-  }
-}
-
-/* 档位徽章：pill，颜色由档位内联样式决定；满溢档额外呼吸光晕 */
+/* 档位徽章：pill，颜色由档位内联样式决定；满溢档粉色呼吸光晕，负面峰值高时红色警示环 */
 .affection-tier-badge {
   padding: 1px 8px;
   border-radius: 9999px;
@@ -666,8 +551,20 @@ watch(enabled, async (v) => {
     box-shadow: 0 0 10px rgba(255, 61, 113, 0.7);
   }
 }
+.affection-tier-alert {
+  animation: affection-tier-alert 1.2s ease-in-out infinite;
+}
+@keyframes affection-tier-alert {
+  0%,
+  100% {
+    box-shadow: 0 0 2px rgba(255, 77, 109, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(255, 77, 109, 0.85);
+  }
+}
 
-/* 最近变化的维度增量小芯片：正粉负蓝 */
+/* 最近变化的增量小芯片：好感正粉负蓝；负面向增暗红、向减青绿（消解） */
 .affection-delta-chip {
   padding: 1px 8px;
   border-radius: 9999px;
@@ -683,9 +580,15 @@ watch(enabled, async (v) => {
 .affection-delta-down {
   color: #7fc4ff;
 }
+.affection-neg-up {
+  color: #f06292;
+}
+.affection-neg-down {
+  color: #8fd6a8;
+}
 
-/* 「当前情绪」负面标签芯片：暗红/玫红系，与正增量粉色芯片区分 */
-.affection-mood-chip {
+/* 「当前负面情绪」芯片：暗红/玫红系，与好感正增量粉色芯片区分 */
+.affection-neg-chip {
   padding: 1px 8px;
   border-radius: 9999px;
   font-size: 11px;

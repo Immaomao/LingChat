@@ -506,9 +506,11 @@ export default {
     introPersist: "Values are saved with the character, shared across saves and not rolled back.",
     introOverflow:
       'Values may overflow: above 100 is "Overflowing" (vertex glows on the radar); below 0 is "Estranged" (shown in cold colors).',
-    moodTitle: "Current mood",
-    introMood:
-      "Negative mood tags are recorded and affect the character's attitude; soothe them to clear.",
+    negativeTitle: "Negative feelings",
+    radarAffection: "Affection",
+    radarNegative: "Negative",
+    introNegative:
+      "Negative feelings are tracked on six axes: they build up when the character is offended or hurt and fade when soothed; any strong axis affects attitude and tone.",
     tier: {
       estranged: "Estranged",
       acquainted: "Just Met",
@@ -525,6 +527,22 @@ export default {
       rapport: "Catching jokes and reading between the lines",
       interest: "Curiosity about your topics; asks questions first",
       longing: "Reaction strength when reunited after long apart",
+    },
+    neg: {
+      anger: "Anger",
+      hurt: "Hurt",
+      disappointment: "Disappointment",
+      indifference: "Indifference",
+      jealousy: "Jealousy",
+      estrangement: "Estrangement",
+    },
+    negDesc: {
+      anger: "Anger when offended",
+      hurt: "Hurt accumulated from being wounded",
+      disappointment: "Disappointment from broken expectations",
+      indifference: "Coldness when disheartened",
+      jealousy: "Jealousy and possessiveness triggered",
+      estrangement: "Tendency to distance from you",
     },
   },
   resourceSync: {

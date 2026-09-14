@@ -13,6 +13,7 @@ use crate::ai_service::tts::VoiceMaker;
 use crate::ai_service::tts::local::LocalTtsRuntime;
 use crate::ai_service::types::{
     AffectionVector, CharacterSettings, GameLine, GameMemoryBank, GameRole, LlmMessage,
+    NegativeVector,
 };
 use crate::config::tts::TtsConfig;
 use crate::db::entities::line::LineAttribute;
@@ -250,7 +251,7 @@ impl GameRoleManager {
             resource_path,
             current_clothes: clothes,
             affection: affection_state.vector,
-            mood_tags: affection_state.mood_tags,
+            negative: affection_state.negative,
             character_dir,
             voice_maker,
             ..Default::default()
@@ -259,38 +260,32 @@ impl GameRoleManager {
         Ok(())
     }
 
-    /// 调整角色好感度（可选同时更新负面情绪标签）并写回角色文件；
-    /// 角色未加载或全部维度无效时返回 None。返回调整后的（六维数值, 情绪标签）。
-    ///
-    /// `mood_tags`：`None` 维持现状，`Some(vec)` 整体替换（空 vec = 消除情绪）。
+    /// 调整角色好感度与负面情绪并写回角色文件；角色未加载时返回 None。
+    /// 返回调整后的（好感六维, 负面六维）。
     pub fn adjust_affection(
         &mut self,
         role_id: i32,
         deltas: &[(String, i32)],
-        mood_tags: Option<Vec<String>>,
-    ) -> Option<(AffectionVector, Vec<String>)> {
+        negative_deltas: &[(String, i32)],
+    ) -> Option<(AffectionVector, NegativeVector)> {
         let role = self.loaded_roles.get_mut(&role_id)?;
         let mut changed = false;
         for (dim, delta) in deltas {
             changed |= role.affection.add_delta(dim, *delta);
         }
-        if let Some(tags) = mood_tags {
-            let tags = crate::ai_service::affection::sanitize_mood_tags(tags);
-            if tags != role.mood_tags {
-                role.mood_tags = tags;
-                changed = true;
-            }
+        for (dim, delta) in negative_deltas {
+            changed |= role.negative.add_delta(dim, *delta);
         }
         if changed {
             crate::ai_service::affection::save(
                 role.character_dir.as_deref(),
                 &crate::ai_service::affection::AffectionState {
                     vector: role.affection,
-                    mood_tags: role.mood_tags.clone(),
+                    negative: role.negative,
                 },
             );
         }
-        Some((role.affection, role.mood_tags.clone()))
+        Some((role.affection, role.negative))
     }
 
     /// 所有已加载角色的当前好感度状态（role_id 字符串键，便于 JSON 序列化）。
@@ -303,7 +298,7 @@ impl GameRoleManager {
                         id.to_string(),
                         crate::ai_service::affection::AffectionState {
                             vector: role.affection,
-                            mood_tags: role.mood_tags.clone(),
+                            negative: role.negative,
                         },
                     )
                 })

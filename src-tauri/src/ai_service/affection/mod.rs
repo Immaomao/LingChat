@@ -4,27 +4,27 @@
 //! 不会回滚感情。运行时由上帝 Agent 定期评估对话后调整（见
 //! `god_agent::core::GodAgentCore::evaluate_affection`）。
 //!
-//! 文件格式为 [`AffectionState`]：六维数值（flatten）+ `mood_tags` 负面情绪标签；
-//! 兼容没有 `mood_tags` 字段的旧文件（反序列化默认为空）。
+//! 文件格式为 [`AffectionState`]：好感六维 + 负面六维（均 flatten）；
+//! 兼容旧文件（缺失字段走默认值；旧版 `mood_tags` 自由文本键被忽略）。
 
 use std::collections::HashMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ai_service::types::AffectionVector;
+use crate::ai_service::types::{AffectionVector, NegativeVector};
 
 /// 角色目录内的好感度文件名。
 pub const AFFECTION_FILE: &str = "affection.yml";
 
-/// 好感度文件/查询响应的完整形态：六维数值 + 负面情绪标签。
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+/// 好感度文件/查询响应的完整形态：好感六维 + 负面情绪六维。
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct AffectionState {
     #[serde(flatten)]
     pub vector: AffectionVector,
-    /// 角色对玩家怀有的负面情绪标签（如「生气」「受伤」；评估产生、安抚消除）。
+    /// 负面情绪六维强度（评估积累、安抚消解）。
     #[serde(default)]
-    pub mood_tags: Vec<String>,
+    pub negative: NegativeVector,
 }
 
 /// 从角色目录读取好感度；目录为空、文件缺失或损坏时回落到初始值。
@@ -54,24 +54,7 @@ pub fn save(character_dir: Option<&Path>, state: &AffectionState) {
     }
 }
 
-/// 清洗情绪标签：去空白、去重、每个最多 8 字符、最多 3 个。
-pub fn sanitize_mood_tags(tags: Vec<String>) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for tag in tags {
-        let tag = tag.trim();
-        if tag.is_empty() || out.iter().any(|t| t == tag) {
-            continue;
-        }
-        let truncated: String = tag.chars().take(8).collect();
-        out.push(truncated);
-        if out.len() >= 3 {
-            break;
-        }
-    }
-    out
-}
-
-/// 数值 → 程度词（供 prompt 注入；数值允许溢出：>100 满溢、负数疏离）。
+/// 好感度数值 → 程度词（供 prompt 注入；数值允许溢出：>100 满溢、负数疏离）。
 pub fn tier_label(value: i32) -> &'static str {
     match value {
         ..=-1 => "疏离",
@@ -84,8 +67,22 @@ pub fn tier_label(value: i32) -> &'static str {
     }
 }
 
+/// 负面情绪强度 → 程度词（供 prompt 注入；>100 视为失控）。
+pub fn negative_tier_label(value: i32) -> &'static str {
+    match value {
+        ..=0 => "无",
+        1..=20 => "轻微",
+        21..=40 => "明显",
+        41..=70 => "强烈",
+        71..=100 => "难以平复",
+        _ => "失控",
+    }
+}
+
 /// 组装注入主对话上下文的情感状态描述（每轮生成时实时拼装，不落台词历史）。
-pub fn describe_for_prompt(affection: &AffectionVector, mood_tags: &[String]) -> String {
+///
+/// 负面情绪只列出强度 > 20 的维度，全低时省略整段。
+pub fn describe_for_prompt(affection: &AffectionVector, negative: &NegativeVector) -> String {
     let dims = AffectionVector::DIMENSIONS
         .iter()
         .map(|(key, label)| {
@@ -94,19 +91,26 @@ pub fn describe_for_prompt(affection: &AffectionVector, mood_tags: &[String]) ->
         })
         .collect::<Vec<_>>()
         .join("、");
-    let mood_hint = if mood_tags.is_empty() {
+    let neg_dims = NegativeVector::DIMENSIONS
+        .iter()
+        .filter_map(|(key, label)| {
+            let v = negative.get(key).unwrap_or(0);
+            (v > 20).then(|| format!("{} {}（{}）", label, v, negative_tier_label(v)))
+        })
+        .collect::<Vec<_>>();
+    let negative_hint = if neg_dims.is_empty() {
         String::new()
     } else {
         format!(
-            "你当前对玩家怀有负面情绪：{}。请让这些情绪体现在你的态度与回应中（语气冲、敷衍、冷淡或委屈等），直到玩家安抚或弥补。",
-            mood_tags.join("、"),
+            "你当前对玩家怀有负面情绪：{}。请以符合强度的方式体现在态度中（语气冲、冷淡、敷衍、委屈或吃醋等），玩家的正面互动会逐渐消解这些情绪。",
+            neg_dims.join("、"),
         )
     };
     format!(
         "【系统状态】你当前对玩家的情感状态（数值越深越高，可超过 100 满溢，负数为疏离）：{}。{}\
          请让这些情感自然地影响你的语气、称呼、主动程度、肢体描写与话题深度，\
          但绝不要在回复中提及这些数值或本提示。",
-        dims, mood_hint
+        dims, negative_hint
     )
 }
 
@@ -115,14 +119,16 @@ pub fn describe_for_prompt(affection: &AffectionVector, mood_tags: &[String]) ->
 #[serde(rename_all = "snake_case")]
 pub struct AffectionChangedPayload {
     pub role_id: i32,
-    /// 本次实际发生变化的维度增量（键名为维度序列化键）。
+    /// 本次实际发生变化的好感维度增量（键名为维度序列化键）。
     pub deltas: HashMap<String, i32>,
-    /// 调整后的完整六维数值。
+    /// 本次实际发生变化的负面情绪维度增量。
+    pub negative_deltas: HashMap<String, i32>,
+    /// 调整后的完整好感六维数值。
     pub values: AffectionVector,
-    /// 六维平均（前端徽章显示的总好感）。
+    /// 调整后的完整负面六维数值。
+    pub negative: NegativeVector,
+    /// 好感六维平均（前端显示的总好感）。
     pub average: i32,
-    /// 调整后的负面情绪标签全集。
-    pub mood_tags: Vec<String>,
     /// 上帝 Agent 给出的调整理由。
     pub reason: String,
 }

@@ -503,8 +503,11 @@ export default {
     introPersist: "数値はキャラクターごとに保存され、セーブ間で共有されます。",
     introOverflow:
       "数値はオーバーフロー可能：100 超は「あふれ」（頂点が発光）、0 未満は「疎遠」（寒色表示）。",
-    moodTitle: "今の気分",
-    introMood: "ネガティブな気分タグは記録され、態度に影響します。なだめると消えます。",
+    negativeTitle: "ネガティブ感情",
+    radarAffection: "好感度",
+    radarNegative: "ネガティブ",
+    introNegative:
+      "ネガティブ感情は6つの軸で記録され、冒犯されると蓄積し、なだめると解消されます。いずれかが強すぎると態度や口調に影響します。",
     tier: {
       estranged: "疎遠",
       acquainted: "初対面",
@@ -521,6 +524,22 @@ export default {
       rapport: "ネタを拾い、行間を読む度合い",
       interest: "話題への好奇心。自分から質問する傾向",
       longing: "久しぶりの再会への反応の強さ",
+    },
+    neg: {
+      anger: "怒り",
+      hurt: "傷心",
+      disappointment: "失望",
+      indifference: "冷淡",
+      jealousy: "嫉妬",
+      estrangement: "疎遠",
+    },
+    negDesc: {
+      anger: "冒犯されたときの怒りの強さ",
+      hurt: "傷ついた度合い",
+      disappointment: "期待が裏切られた失望",
+      indifference: "心が冷めたときのそっけなさ",
+      jealousy: "嫉妬・独占欲の高まり",
+      estrangement: "距離を置きたい気持ち",
     },
   },
   resourceSync: {
