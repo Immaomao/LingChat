@@ -81,7 +81,7 @@ pub fn negative_tier_label(value: i32) -> &'static str {
 
 /// 组装注入主对话上下文的情感状态描述（每轮生成时实时拼装，不落台词历史）。
 ///
-/// 负面情绪只列出强度 > 20 的维度，全低时省略整段。
+/// 负面情绪只列出非零的维度，全 0 时省略整段。
 pub fn describe_for_prompt(affection: &AffectionVector, negative: &NegativeVector) -> String {
     let dims = AffectionVector::DIMENSIONS
         .iter()
@@ -95,7 +95,7 @@ pub fn describe_for_prompt(affection: &AffectionVector, negative: &NegativeVecto
         .iter()
         .filter_map(|(key, label)| {
             let v = negative.get(key).unwrap_or(0);
-            (v > 20).then(|| format!("{} {}（{}）", label, v, negative_tier_label(v)))
+            (v > 0).then(|| format!("{} {}（{}）", label, v, negative_tier_label(v)))
         })
         .collect::<Vec<_>>();
     let negative_hint = if neg_dims.is_empty() {
