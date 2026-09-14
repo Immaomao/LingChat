@@ -85,8 +85,8 @@ import { getAffection } from "@/api/services/affection";
 const gameStore = useGameStore();
 const uiStore = useUIStore();
 
-// 窄屏默认收起（宽屏默认展开，便于发现入口）
-const enabled = ref(!uiStore.isNarrowScreen);
+// 默认收起，点击按钮展开
+const enabled = ref(false);
 
 const role = computed(() => gameStore.currentInteractRole);
 const affection = computed(() => role.value?.affection ?? null);
