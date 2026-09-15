@@ -9,7 +9,7 @@
       @click="toggleEnabled"
       v-show="!uiStore.showSettings"
     >
-      <Heart :size="18" />
+      <Heart :size="18" class="affection-heartbeat" :style="heartbeatStyle" />
       <h3 class="m-0 hidden text-lg font-bold xl:block">
         {{ $t("ui.affection.title") }}
         <span v-if="average !== null" class="ml-1 text-sm font-normal tabular-nums opacity-80">
@@ -39,24 +39,28 @@
           >
             <div
               v-if="enabled"
-              class="relative flex max-h-[85dvh] flex-col overflow-hidden rounded-3xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
-              :class="uiStore.isNarrowScreen ? 'w-[95vw]' : 'w-220'"
+              class="relative flex max-h-[85dvh] flex-col overflow-hidden rounded-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+              :class="uiStore.isNarrowScreen ? 'w-[95vw]' : 'w-168'"
             >
               <!-- Header bar -->
               <div
-                class="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#12121c]/90 px-5 py-3 backdrop-blur-xl"
+                class="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#12121c]/90 px-4 py-2.5 backdrop-blur-xl"
               >
                 <div class="flex items-center gap-2">
-                  <Heart :size="20" class="text-[#ff8fc0]" />
-                  <h3 class="text-base font-semibold text-white">
+                  <Heart
+                    :size="17"
+                    class="affection-heartbeat text-[#ff8fc0]"
+                    :style="heartbeatStyle"
+                  />
+                  <h3 class="text-sm font-semibold tracking-wide text-white">
                     {{ $t("ui.affection.title") }}
                   </h3>
                 </div>
                 <button
-                  class="rounded-full p-2 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                  class="rounded-full p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
                   @click="close"
                 >
-                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       stroke-linecap="round"
                       stroke-linejoin="round"
@@ -69,35 +73,35 @@
 
               <!-- Content area with glass styling -->
               <div
-                class="min-h-0 flex-1 scrollbar-thin [scrollbar-color:var(--accent-color)_transparent] overflow-y-auto rounded-b-3xl bg-[#12121c]/75 p-5 text-white backdrop-blur-[20px]"
+                class="min-h-0 flex-1 scrollbar-thin [scrollbar-color:var(--accent-color)_transparent] overflow-y-auto rounded-b-2xl bg-[#12121c]/75 p-4 text-white backdrop-blur-[20px]"
               >
                 <!-- 只显示当前对话角色；切换角色时旧内容淡出、新内容淡入（雷达子组件随 key 重挂载） -->
                 <Transition name="affection-role" mode="out-in">
                   <div :key="role?.roleId ?? 'none'">
                     <template v-if="affection">
                       <!-- 角色头部：头像 + 名字 + 平均值大数字 + 档位徽章 -->
-                      <div class="flex items-center gap-3">
+                      <div class="flex items-center gap-2.5">
                         <img
                           v-if="avatarUrl"
                           :src="avatarUrl"
                           :alt="role?.roleName ?? ''"
-                          class="h-12 w-12 shrink-0 rounded-full border border-white/15 object-cover"
+                          class="h-10 w-10 shrink-0 rounded-full border border-white/15 object-cover"
                         />
                         <div
                           v-else
-                          class="h-12 w-12 shrink-0 rounded-full border border-white/10 bg-white/5"
+                          class="h-10 w-10 shrink-0 rounded-full border border-white/10 bg-white/5"
                         ></div>
                         <div class="min-w-0 flex-1">
-                          <div class="truncate text-lg font-bold">
+                          <div class="truncate text-base font-semibold">
                             {{ role?.roleName ?? "—" }}
                           </div>
-                          <div class="text-xs text-white/50">
+                          <div class="text-[11px] text-white/50">
                             {{ $t("ui.affection.average") }}
                           </div>
                         </div>
-                        <div class="flex shrink-0 flex-col items-end gap-1.5">
+                        <div class="flex shrink-0 flex-col items-end gap-1">
                           <span
-                            class="text-3xl leading-none font-bold tabular-nums"
+                            class="text-2xl leading-none font-bold tabular-nums"
                             :style="{ color: tierColor }"
                           >
                             {{ average }}
@@ -118,10 +122,10 @@
                       <!-- 当前负面情绪：由负面六维派生（强度 > 30 的维度），暗红系芯片 -->
                       <div
                         v-if="negativeChips.length > 0"
-                        class="mt-3 flex flex-wrap items-center gap-2"
+                        class="mt-2.5 flex flex-wrap items-center gap-1.5"
                       >
-                        <span class="flex items-center gap-1 text-xs text-white/50">
-                          <CloudRain :size="12" />
+                        <span class="flex items-center gap-1 text-[11px] text-white/50">
+                          <CloudRain :size="11" />
                           {{ $t("ui.affection.negativeTitle") }}
                         </span>
                         <span
@@ -136,7 +140,7 @@
                       <!-- 距下一档进度 -->
                       <div
                         v-if="nextTierInfo"
-                        class="mt-2 flex items-center justify-end gap-2 text-xs text-white/50"
+                        class="mt-1.5 flex items-center justify-end gap-2 text-[11px] text-white/50"
                       >
                         <div class="h-1 w-20 overflow-hidden rounded-full bg-white/10">
                           <div
@@ -162,7 +166,7 @@
                       </div>
 
                       <!-- 双雷达：左好感 / 右负面；窄屏上下堆叠（窗口内容区可滚动） -->
-                      <div class="mt-2 flex flex-col gap-2 md:flex-row md:gap-4">
+                      <div class="mt-1 flex flex-col gap-1 md:flex-row md:gap-3">
                         <AffectionRadar
                           :title="$t('ui.affection.radarAffection')"
                           :values="affectionValues"
@@ -183,9 +187,9 @@
                       <!-- 最近一次评估变化（好感增量 + 负面增量并列；负面向增暗红、向减青绿=消解） -->
                       <div
                         v-if="recentChange"
-                        class="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+                        class="mt-2.5 rounded-xl border border-white/10 bg-white/5 p-2.5"
                       >
-                        <div class="mb-1.5 text-xs font-semibold text-white/60">
+                        <div class="mb-1 text-[11px] font-semibold text-white/60">
                           {{ $t("ui.affection.recentChange") }}
                         </div>
                         <div class="flex flex-wrap gap-1.5">
@@ -210,26 +214,26 @@
                         </div>
                         <div
                           v-if="recentChange.reason"
-                          class="mt-1.5 text-xs leading-relaxed text-white/50"
+                          class="mt-1 text-[11px] leading-relaxed text-white/50"
                         >
                           {{ recentChange.reason }}
                         </div>
                       </div>
                     </template>
 
-                    <div v-else class="py-10 text-center text-sm text-white/40">
+                    <div v-else class="py-8 text-center text-sm text-white/40">
                       {{ $t("ui.affection.noData") }}
                     </div>
 
                     <!-- 好感度介绍（可折叠） -->
-                    <div class="mt-4 border-t border-white/10 pt-3">
+                    <div class="mt-3 border-t border-white/10 pt-2.5">
                       <button
-                        class="flex w-full cursor-pointer items-center justify-between border-none bg-transparent p-0 text-sm text-white/60 transition-colors hover:text-white"
+                        class="flex w-full cursor-pointer items-center justify-between border-none bg-transparent p-0 text-xs text-white/60 transition-colors hover:text-white"
                         @click="introOpen = !introOpen"
                       >
                         <span>{{ $t("ui.affection.introTitle") }}</span>
                         <ChevronDown
-                          :size="14"
+                          :size="13"
                           class="transition-transform duration-200"
                           :class="{ 'rotate-180': introOpen }"
                         />
@@ -242,7 +246,7 @@
                       >
                         <div
                           v-if="introOpen"
-                          class="mt-2 flex flex-col gap-1.5 text-xs leading-relaxed text-white/50"
+                          class="mt-2 flex flex-col gap-1 text-[11px] leading-relaxed text-white/50"
                         >
                           <div v-for="dim in dimensions" :key="`desc-${dim.key}`">
                             · <span class="text-white/70">{{ $t(`ui.affection.${dim.key}`) }}</span
@@ -418,6 +422,13 @@ const tierBadgeStyle = computed(() => {
   return { color: c, borderColor: `${c}80`, background: `${c}1f` };
 });
 
+// ── 爱心心跳：心动周期随好感平均值加快（无数据 1.8s → 满溢 0.7s） ──
+const heartbeatStyle = computed(() => {
+  const v = average.value;
+  const duration = v === null ? 1.8 : Math.min(2.2, Math.max(0.7, 1.9 - v / 125));
+  return { "--heartbeat-duration": `${duration.toFixed(2)}s` };
+});
+
 /** 距下一档的点数与本档内进度（满溢/无数据时为 null） */
 const nextTierInfo = computed((): { key: TierKey; points: number; progress: number } | null => {
   const v = average.value;
@@ -514,6 +525,31 @@ watch(enabled, async (v) => {
 </script>
 
 <style scoped>
+/* 爱心心跳：经典「怦-怦」双跳节奏，周期由 --heartbeat-duration 内联控制（随好感加快） */
+.affection-heartbeat {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: affection-heartbeat var(--heartbeat-duration, 1.8s) ease-in-out infinite;
+}
+@keyframes affection-heartbeat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.25);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.16);
+  }
+  60% {
+    transform: scale(1);
+  }
+}
+
 /* 切换角色：旧内容轻微上浮淡出，新内容自下淡入 */
 .affection-role-enter-active,
 .affection-role-leave-active {
