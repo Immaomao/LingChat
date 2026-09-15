@@ -52,11 +52,11 @@
                 class="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#12121c]/90 px-4 py-2.5 backdrop-blur-xl"
               >
                 <div class="flex items-center gap-2">
+                  <!-- 面板内爱心常跳；心跳开关只控制顶栏按钮 -->
                   <HeartLiquid
                     :value="average"
                     :size="17"
-                    class="shrink-0"
-                    :class="{ 'affection-heartbeat': heartbeatEnabled }"
+                    class="affection-heartbeat shrink-0"
                     :style="heartbeatStyle"
                   />
                   <h3 class="text-sm font-semibold tracking-wide text-white">

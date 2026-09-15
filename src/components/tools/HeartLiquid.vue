@@ -21,8 +21,8 @@
     <!-- 心形容器暗色底 -->
     <path :d="HEART_PATH" fill="rgba(255, 255, 255, 0.05)" />
 
-    <!-- 红色液体：后波（浅色）+ 前波（渐变）双层，心形裁剪 -->
-    <g :clip-path="`url(#${clipId})`">
+    <!-- 红色液体：后波（浅色）+ 前波（渐变）双层，心形裁剪；随窗口移动倾斜晃动 -->
+    <g :clip-path="`url(#${clipId})`" :transform="`rotate(${tiltDeg} 12 12)`">
       <path :d="backWaveD" fill="rgba(255, 122, 152, 0.35)" />
       <path :d="frontWaveD" :fill="`url(#${gradId})`" />
     </g>
@@ -41,6 +41,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, useId, watch } from "vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 
 const props = withDefaults(
   defineProps<{
@@ -75,13 +77,18 @@ const targetLevel = computed(() => {
 // ── 液体物理：液位弹簧阻尼（欠阻尼 → 过冲）+ 晃动能量注入/衰减 + 双层行波 ──
 const frontWaveD = ref("");
 const backWaveD = ref("");
+/** 液面倾斜角（度）：窗口拖动时注入角速度，弹簧回正 */
+const tiltDeg = ref(0);
 
 let level = targetLevel.value;
 let velocity = 0;
-let slosh = 0; // 晃动能量 0..1：液位突变/弹簧速度注入，随时间指数衰减
+let slosh = 0; // 晃动能量 0..1：液位突变/窗口拖动注入，随时间指数衰减
 let phase = 0;
+let tilt = 0;
+let tiltVel = 0;
 let rafId: number | null = null;
 let lastT = 0;
+let unlistenMove: UnlistenFn | null = null;
 
 const W = 24;
 
@@ -111,6 +118,11 @@ function frame(t: number) {
   slosh *= Math.exp(-2.4 * dt);
   phase += dt * (1.6 + slosh * 5);
 
+  // 倾斜角弹簧回正（欠阻尼 → 拖窗停下后液面左右摇两下再平）
+  tiltVel += (-70 * tilt - 7 * tiltVel) * dt;
+  tilt += tiltVel * dt;
+  tiltDeg.value = Math.max(-14, Math.min(14, tilt));
+
   // 液面映射到心形内部（心形内容区约 y=2~21.5）：满杯盖过顶部，空杯沉到心尖以下
   const surfaceY = 22.5 - level * 24.5;
   const ampFront = 0.45 + slosh * 1.7;
@@ -125,10 +137,27 @@ watch(targetLevel, (next, prev) => {
   slosh = Math.min(1, slosh + Math.abs(next - prev) * 4 + 0.15);
 });
 
-onMounted(() => {
+onMounted(async () => {
   rafId = requestAnimationFrame(frame);
+
+  // 拖动窗口 → 液体物理：位移距离注入晃动能量，水平速度注入倾斜角速度
+  try {
+    let lastPos: { x: number; y: number } | null = null;
+    unlistenMove = await getCurrentWindow().onMoved(({ payload: pos }) => {
+      if (lastPos) {
+        const dx = pos.x - lastPos.x;
+        const dy = pos.y - lastPos.y;
+        slosh = Math.min(1, slosh + Math.hypot(dx, dy) / 260);
+        tiltVel = Math.max(-40, Math.min(40, tiltVel + dx * 0.12));
+      }
+      lastPos = { x: pos.x, y: pos.y };
+    });
+  } catch {
+    /* 非 Tauri 环境（纯 web 预览）无窗口事件，忽略 */
+  }
 });
 onUnmounted(() => {
   if (rafId !== null) cancelAnimationFrame(rafId);
+  unlistenMove?.();
 });
 </script>

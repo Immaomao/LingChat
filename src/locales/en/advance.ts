@@ -44,7 +44,7 @@ export default {
     memoryButton: "Open Memory Debug",
     affectionTitle: "Affection Heartbeat",
     affectionDesc:
-      "Toggle the heartbeat animation and red liquid effect of the affection heart in the top bar; applies instantly and saves automatically",
+      "Heartbeat toggle for the affection heart in the top bar; when off, the top-bar heart stays still while the one inside the affection panel keeps beating",
     affectionToggle: "Enable heartbeat animation",
   },
 };

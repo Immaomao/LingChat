@@ -38,7 +38,7 @@ export default {
     memoryDesc: "查看角色當前的記憶庫內容與真實上下文，用於排查記憶壓縮與注入問題",
     memoryButton: "進入記憶調試界面",
     affectionTitle: "好感度心跳",
-    affectionDesc: "頂欄好感度愛心嘅跳動動畫同紅色液體效果開關，即時生效並自動保存",
+    affectionDesc: "頂欄好感度愛心嘅跳動動畫開關；閂咗之後頂欄愛心靜止，好感度面板內仍會跳動",
     affectionToggle: "啟用心跳動畫",
   },
 };
