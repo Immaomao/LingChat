@@ -4,7 +4,9 @@
 //! 不会回滚感情。运行时由上帝 Agent 定期评估对话后调整（见
 //! `god_agent::core::GodAgentCore::evaluate_affection`）。
 //!
-//! 文件格式为 [`AffectionState`]：好感六维 + 负面六维（均 flatten）；
+//! 文件格式为 [`AffectionState`]：总好感度 `total` + 好感六维 + 负面六维（后两者
+//! flatten）；`total` 是六维平均的派生值，读/写时都自动与六维同步（手改它不会生效，
+//! 下次读档即被六维平均覆盖），仅供查看与外部工具读取。
 //! 兼容旧文件（缺失字段走默认值；旧版 `mood_tags` 自由文本键被忽略）。
 
 use std::collections::HashMap;
@@ -17,9 +19,13 @@ use crate::ai_service::types::{AffectionVector, NegativeVector};
 /// 角色目录内的好感度文件名。
 pub const AFFECTION_FILE: &str = "affection.yml";
 
-/// 好感度文件/查询响应的完整形态：好感六维 + 负面情绪六维。
+/// 好感度文件/查询响应的完整形态：总好感度 + 好感六维 + 负面情绪六维。
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct AffectionState {
+    /// 总好感度 = 好感六维平均。派生字段：加载时按六维重算、保存时同步写入，
+    /// 文件里手改它不会生效（下次读档被六维平均覆盖）；改总好感请直接改六维。
+    #[serde(default)]
+    pub total: i32,
     #[serde(flatten)]
     pub vector: AffectionVector,
     /// 负面情绪六维强度（评估积累、安抚消解）。
@@ -28,23 +34,28 @@ pub struct AffectionState {
 }
 
 /// 从角色目录读取好感度；目录为空、文件缺失或损坏时回落到初始值。
+/// `total` 无论文件里写什么，都按六维平均重算，保证与六维一致。
 pub fn load(character_dir: Option<&Path>) -> AffectionState {
-    let Some(dir) = character_dir else {
-        return AffectionState::default();
+    let mut state = match character_dir {
+        Some(dir) => std::fs::read_to_string(dir.join(AFFECTION_FILE))
+            .ok()
+            .and_then(|text| serde_yaml::from_str(&text).ok())
+            .unwrap_or_default(),
+        None => AffectionState::default(),
     };
-    let Ok(text) = std::fs::read_to_string(dir.join(AFFECTION_FILE)) else {
-        return AffectionState::default();
-    };
-    serde_yaml::from_str(&text).unwrap_or_default()
+    state.total = state.vector.average();
+    state
 }
 
-/// 写回角色目录；写入失败只记日志不中断流程。
+/// 写回角色目录；写入失败只记日志不中断流程。写入前把 `total` 同步为六维平均。
 pub fn save(character_dir: Option<&Path>, state: &AffectionState) {
     let Some(dir) = character_dir else {
         return;
     };
+    let mut synced = *state;
+    synced.total = synced.vector.average();
     let path = dir.join(AFFECTION_FILE);
-    match serde_yaml::to_string(state) {
+    match serde_yaml::to_string(&synced) {
         Ok(text) => {
             if let Err(e) = std::fs::write(&path, text) {
                 tracing::warn!("[Affection] 写入 {:?} 失败: {}", path, e);

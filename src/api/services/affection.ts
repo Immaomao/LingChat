@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AffectionVector, NegativeVector } from "@/stores/modules/game/state";
 
-/** 角色情感状态：好感六维（flatten）+ 负面六维（对应 Rust AffectionState） */
+/** 角色情感状态：总好感度 + 好感六维（flatten）+ 负面六维（对应 Rust AffectionState） */
 export interface AffectionState extends AffectionVector {
+  /** 总好感度 = 好感六维平均（后端派生字段，随六维自动同步） */
+  total: number;
   negative: NegativeVector;
 }
 

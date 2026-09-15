@@ -280,6 +280,7 @@ impl GameRoleManager {
             crate::ai_service::affection::save(
                 role.character_dir.as_deref(),
                 &crate::ai_service::affection::AffectionState {
+                    total: role.affection.average(),
                     vector: role.affection,
                     negative: role.negative,
                 },
@@ -297,6 +298,7 @@ impl GameRoleManager {
                     (
                         id.to_string(),
                         crate::ai_service::affection::AffectionState {
+                            total: role.affection.average(),
                             vector: role.affection,
                             negative: role.negative,
                         },
