@@ -169,7 +169,6 @@ import { applyWebInitData } from "../../../stores/modules/game/actions";
 import { eventQueue } from "../../../core/events/event-queue";
 import { useUIStore } from "../../../stores/modules/ui/ui";
 import { useDialogStore } from "../../../stores/modules/ui/dialog";
-import { eventQueue } from "@/core/events/event-queue";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import type { SaveInfo } from "../../../types";
 import type { WebInitData } from "../../../api/services/game-info";
@@ -331,7 +330,7 @@ const handleLoadSave = async (saveId: number) => {
   try {
     const gameInfo = await invoke<WebInitData>("load_save", { saveId });
     applyWebInitData(gameStore.$state, gameInfo);
-    
+
     // 此处解决了 剧本状态持久化和自动事件clear，注意之后出问题了可以看这里的代码
     gameStore.scriptReadCursor = null;
     // 存档带剧本进度时后端已从存档点续跑引擎，前端同步回到剧情模式；否则回到自由对话
