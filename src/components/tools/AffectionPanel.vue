@@ -12,6 +12,7 @@
       <HeartLiquid
         :value="average"
         :size="18"
+        :wave="waveEnabled"
         :class="{ 'affection-heartbeat': heartbeatEnabled }"
         :style="heartbeatStyle"
       />
@@ -56,6 +57,7 @@
                   <HeartLiquid
                     :value="average"
                     :size="17"
+                    :wave="waveEnabled"
                     class="affection-heartbeat shrink-0"
                     :style="heartbeatStyle"
                   />
@@ -308,6 +310,8 @@ const settingsStore = useSettingsStore();
 
 /** 心跳动画开关（高级设置 → 主菜单，立即生效；关闭后液体爱心静止） */
 const heartbeatEnabled = computed(() => settingsStore.affectionHeartbeatEnabled);
+/** 液体波浪动画开关（关闭后液面为静止平面，液位弹簧保留） */
+const waveEnabled = computed(() => settingsStore.affectionWaveEnabled);
 
 const enabled = ref(false);
 const introOpen = ref(false);

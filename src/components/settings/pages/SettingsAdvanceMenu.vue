@@ -156,6 +156,13 @@
         >
           {{ $t("advance.menu.affectionToggle") }}
         </Toggle>
+        <Toggle
+          class="mt-2"
+          :checked="affectionWaveEnabled"
+          @change="settingsStore.setAffectionWaveEnabled($event)"
+        >
+          {{ $t("advance.menu.affectionWaveToggle") }}
+        </Toggle>
       </MenuItem>
     </div>
 
@@ -201,6 +208,7 @@ import { computed } from "vue";
 const { locale } = useI18n();
 const settingsStore = useSettingsStore();
 const affectionHeartbeatEnabled = computed(() => settingsStore.affectionHeartbeatEnabled);
+const affectionWaveEnabled = computed(() => settingsStore.affectionWaveEnabled);
 
 const emit = defineEmits<{
   navigate: [tab: "llm" | "tts" | "asr" | "other" | "tools" | "cast" | "memory"];

@@ -49,8 +49,10 @@ const props = withDefaults(
     /** 好感平均值：null=无数据（空杯）；<0 冷色描边；>100 满溢发光（钳到满杯） */
     value: number | null;
     size?: number;
+    /** 动态波浪开关（高级设置）；关闭后液面静止为平面，液位弹簧保留 */
+    wave?: boolean;
   }>(),
-  { size: 18 },
+  { size: 18, wave: true },
 );
 
 // Lucide heart 轮廓（24x24）
@@ -116,16 +118,17 @@ function frame(t: number) {
   // 弹簧速度本身也带起晃动；相位速度随晃动能量加快（激烈时浪更急）
   slosh = Math.min(1, slosh + Math.abs(velocity) * dt * 1.5);
   slosh *= Math.exp(-2.4 * dt);
-  phase += dt * (1.6 + slosh * 5);
+  if (props.wave) phase += dt * (2.4 + slosh * 5);
 
   // 倾斜角弹簧回正（欠阻尼 → 拖窗停下后液面左右摇两下再平）
   tiltVel += (-70 * tilt - 7 * tiltVel) * dt;
   tilt += tiltVel * dt;
-  tiltDeg.value = Math.max(-14, Math.min(14, tilt));
+  tiltDeg.value = props.wave ? Math.max(-14, Math.min(14, tilt)) : 0;
 
   // 液面映射到心形内部（心形内容区约 y=2~21.5）：满杯盖过顶部，空杯沉到心尖以下
   const surfaceY = 22.5 - level * 24.5;
-  const ampFront = 0.45 + slosh * 1.7;
+  // 波浪关闭时液面为静止平面（振幅 0），液位弹簧照常工作
+  const ampFront = props.wave ? 0.9 + slosh * 1.8 : 0;
   frontWaveD.value = wavePath(surfaceY, ampFront, phase, 1.5);
   backWaveD.value = wavePath(surfaceY + 0.6, ampFront * 0.75, phase * 0.8 + 1.9, 1.2);
 

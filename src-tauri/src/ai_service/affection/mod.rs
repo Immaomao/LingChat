@@ -57,6 +57,12 @@ pub fn save(character_dir: Option<&Path>, state: &AffectionState) {
     let path = dir.join(AFFECTION_FILE);
     match serde_yaml::to_string(&synced) {
         Ok(text) => {
+            // total 是结构体首字段、序列化在第一行；在其上方插入注释提示手改无效
+            let text = text.replacen(
+                "total:",
+                "# 总好感度 = 好感六维平均（自动同步的派生值，手动修改无效；要调总值请改下方六维）\ntotal:",
+                1,
+            );
             if let Err(e) = std::fs::write(&path, text) {
                 tracing::warn!("[Affection] 写入 {:?} 失败: {}", path, e);
             }

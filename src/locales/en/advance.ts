@@ -44,7 +44,8 @@ export default {
     memoryButton: "Open Memory Debug",
     affectionTitle: "Affection Heartbeat",
     affectionDesc:
-      "Heartbeat toggle for the affection heart in the top bar; when off, the top-bar heart stays still while the one inside the affection panel keeps beating",
+      "Heartbeat and red liquid wave animation toggles for the affection heart; with heartbeat off, the top-bar heart stays still while the one inside the affection panel keeps beating",
     affectionToggle: "Enable heartbeat animation",
+    affectionWaveToggle: "Enable wave animation",
   },
 };

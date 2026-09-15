@@ -57,6 +57,7 @@ export const DEFAULT_SETTINGS = {
     dialogSpacebarHideEnabled: true, // 空格键隐藏/显示对话框
     dialogAutoHideOnThinkEnabled: true, // AI 思考时自动隐藏
     affectionHeartbeatEnabled: true, // 好感度爱心心跳动画开关（关闭后液体爱心静止）
+    affectionWaveEnabled: true, // 好感度爱心液体波浪动画开关（关闭后液面为静止平面）
   },
   // 角色设置
   character: {
@@ -116,6 +117,7 @@ export interface DisplaySettings {
   dialogSpacebarHideEnabled: boolean;
   dialogAutoHideOnThinkEnabled: boolean;
   affectionHeartbeatEnabled: boolean;
+  affectionWaveEnabled: boolean;
 }
 
 export interface CharacterSettings {
@@ -192,6 +194,8 @@ export const useSettingsStore = defineStore("settings", {
     dialogAutoHideOnThinkEnabled: (state) => state.display.dialogAutoHideOnThinkEnabled,
     // 好感度爱心心跳动画开关（旧持久化数据缺该字段时回退 true）
     affectionHeartbeatEnabled: (state) => state.display.affectionHeartbeatEnabled ?? true,
+    // 好感度爱心液体波浪动画开关（同上回退 true）
+    affectionWaveEnabled: (state) => state.display.affectionWaveEnabled ?? true,
     // 各音量
     characterVolume: (state) => state.audio.characterVolume,
     bubbleVolume: (state) => state.audio.bubbleVolume,
@@ -399,6 +403,10 @@ export const useSettingsStore = defineStore("settings", {
     // 设置好感度爱心心跳动画开关
     setAffectionHeartbeatEnabled(enabled: boolean) {
       this.display.affectionHeartbeatEnabled = enabled;
+    },
+    // 设置好感度爱心液体波浪动画开关
+    setAffectionWaveEnabled(enabled: boolean) {
+      this.display.affectionWaveEnabled = enabled;
     },
     // 全部重置为默认
     resetDialogAppearance() {
