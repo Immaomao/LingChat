@@ -11,6 +11,7 @@
     >
       <HeartLiquid
         :value="average"
+        :negative="negativePeak"
         :size="18"
         :wave="waveEnabled"
         :class="{ 'affection-heartbeat': heartbeatEnabled }"
@@ -56,6 +57,7 @@
                   <!-- 面板内爱心常跳；心跳开关只控制顶栏按钮 -->
                   <HeartLiquid
                     :value="average"
+                    :negative="negativePeak"
                     :size="17"
                     :wave="waveEnabled"
                     class="affection-heartbeat shrink-0"

@@ -13,17 +13,18 @@
         <path :d="HEART_PATH" />
       </clipPath>
       <linearGradient :id="gradId" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#ff7d9c" />
-        <stop offset="100%" stop-color="#e0113c" />
+        <stop offset="0%" :stop-color="frontTopColor" />
+        <stop offset="100%" :stop-color="frontBottomColor" />
       </linearGradient>
     </defs>
 
     <!-- 心形容器暗色底 -->
     <path :d="HEART_PATH" fill="rgba(255, 255, 255, 0.05)" />
 
-    <!-- 红色液体：后波（浅色）+ 前波（渐变）双层，心形裁剪；随窗口移动倾斜晃动 -->
+    <!-- 液体：后波（浅色）+ 前波（渐变）双层，心形裁剪；随窗口移动倾斜晃动。
+         负面情绪峰值高时由红渐变为灰（颜色在 frame 循环里平滑过渡） -->
     <g :clip-path="`url(#${clipId})`" :transform="`rotate(${tiltDeg} 12 12)`">
-      <path :d="backWaveD" fill="rgba(255, 122, 152, 0.35)" />
+      <path :d="backWaveD" :fill="backWaveColor" />
       <path :d="frontWaveD" :fill="`url(#${gradId})`" />
     </g>
 
@@ -48,11 +49,13 @@ const props = withDefaults(
   defineProps<{
     /** 好感平均值：null=无数据（空杯）；<0 冷色描边；>100 满溢发光（钳到满杯） */
     value: number | null;
+    /** 负面情绪峰值（0~100+）：越高液体越灰（≤15 纯红、≥60 全灰，平滑过渡） */
+    negative?: number | null;
     size?: number;
     /** 动态波浪开关（高级设置）；关闭后液面静止为平面，液位弹簧保留 */
     wave?: boolean;
   }>(),
-  { size: 18, wave: true },
+  { size: 18, wave: true, negative: null },
 );
 
 // Lucide heart 轮廓（24x24）
@@ -64,10 +67,37 @@ const uid = useId();
 const clipId = `heart-clip-${uid}`;
 const gradId = `heart-grad-${uid}`;
 
+// ── 红→灰配色插值（负面情绪驱动） ──
+type Rgb = [number, number, number];
+const RED_TOP: Rgb = [255, 125, 156];
+const RED_BOTTOM: Rgb = [224, 17, 60];
+const GRAY_TOP: Rgb = [201, 201, 209];
+const GRAY_BOTTOM: Rgb = [85, 85, 94];
+const mixRgb = (a: Rgb, b: Rgb, t: number): string =>
+  `rgb(${Math.round(a[0] + (b[0] - a[0]) * t)}, ${Math.round(a[1] + (b[1] - a[1]) * t)}, ${Math.round(
+    a[2] + (b[2] - a[2]) * t,
+  )})`;
+
+/** 灰化程度 0（纯红）~1（全灰），frame 循环里向目标值平滑趋近 */
+const grayMix = ref(0);
+const frontTopColor = computed(() => mixRgb(RED_TOP, GRAY_TOP, grayMix.value));
+const frontBottomColor = computed(() => mixRgb(RED_BOTTOM, GRAY_BOTTOM, grayMix.value));
+const backWaveColor = computed(() => {
+  const r = Math.round(255 + (170 - 255) * grayMix.value);
+  const g = Math.round(122 + (170 - 122) * grayMix.value);
+  const b = Math.round(152 + (180 - 152) * grayMix.value);
+  return `rgba(${r}, ${g}, ${b}, 0.35)`;
+});
+
 const overflow = computed(() => (props.value ?? 0) > 100);
-const glowStyle = computed(() =>
-  overflow.value ? { filter: "drop-shadow(0 0 4px rgba(255, 61, 113, 0.9))" } : {},
-);
+const glowStyle = computed(() => {
+  if (!overflow.value) return {};
+  const t = grayMix.value;
+  const r = Math.round(255 + (150 - 255) * t);
+  const g = Math.round(61 + (150 - 61) * t);
+  const b = Math.round(113 + (160 - 113) * t);
+  return { filter: `drop-shadow(0 0 4px rgba(${r}, ${g}, ${b}, 0.9))` };
+});
 
 /** 目标液位 0..1 */
 const targetLevel = computed(() => {
@@ -124,6 +154,10 @@ function frame(t: number) {
   tiltVel += (-70 * tilt - 7 * tiltVel) * dt;
   tilt += tiltVel * dt;
   tiltDeg.value = props.wave ? Math.max(-14, Math.min(14, tilt)) : 0;
+
+  // 灰化程度向目标平滑趋近（负面情绪 ≤15 纯红、≥60 全灰）
+  const grayTarget = Math.min(1, Math.max(0, ((props.negative ?? 0) - 15) / 45));
+  grayMix.value += (grayTarget - grayMix.value) * (1 - Math.exp(-3 * dt));
 
   // 液面映射到心形内部（心形内容区约 y=2~21.5）：满杯盖过顶部，空杯沉到心尖以下
   const surfaceY = 22.5 - level * 24.5;
