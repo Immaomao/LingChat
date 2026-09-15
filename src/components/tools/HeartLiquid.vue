@@ -27,11 +27,11 @@
       <path :d="frontWaveD" :fill="`url(#${gradId})`" />
     </g>
 
-    <!-- 描边盖在液体之上：负好感冷色，满溢（>100）发光 -->
+    <!-- 描边盖在液体之上：白边，满溢（>100）发光 -->
     <path
       :d="HEART_PATH"
       fill="none"
-      :stroke="strokeColor"
+      stroke="rgba(255, 255, 255, 0.9)"
       stroke-width="1.8"
       stroke-linecap="round"
       stroke-linejoin="round"
@@ -61,7 +61,6 @@ const clipId = `heart-clip-${uid}`;
 const gradId = `heart-grad-${uid}`;
 
 const overflow = computed(() => (props.value ?? 0) > 100);
-const strokeColor = computed(() => ((props.value ?? 0) < 0 ? "#7fc4ff" : "#ff8fc0"));
 const glowStyle = computed(() =>
   overflow.value ? { filter: "drop-shadow(0 0 4px rgba(255, 61, 113, 0.9))" } : {},
 );
@@ -112,8 +111,8 @@ function frame(t: number) {
   slosh *= Math.exp(-2.4 * dt);
   phase += dt * (1.6 + slosh * 5);
 
-  // 满杯时液面抬到心形顶上方（全满），空杯沉到底部外
-  const surfaceY = 26 - level * 30;
+  // 液面映射到心形内部（心形内容区约 y=2~21.5）：满杯盖过顶部，空杯沉到心尖以下
+  const surfaceY = 22.5 - level * 24.5;
   const ampFront = 0.45 + slosh * 1.7;
   frontWaveD.value = wavePath(surfaceY, ampFront, phase, 1.5);
   backWaveD.value = wavePath(surfaceY + 0.6, ampFront * 0.75, phase * 0.8 + 1.9, 1.2);
