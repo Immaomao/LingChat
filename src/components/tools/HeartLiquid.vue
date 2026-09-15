@@ -16,30 +16,18 @@
         <stop offset="0%" :stop-color="frontTopColor" />
         <stop offset="100%" :stop-color="frontBottomColor" />
       </linearGradient>
-      <filter :id="smokeBlurId" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur stdDeviation="1.1" />
-      </filter>
     </defs>
 
     <!-- 心形容器暗色底 -->
     <path :d="HEART_PATH" fill="rgba(255, 255, 255, 0.05)" />
 
-    <!-- 液体：后波（浅色）+ 前波（渐变）双层 + 黑烟粒子，心形裁剪；随窗口移动倾斜晃动。
+    <!-- 液体：后波（浅色）+ 前波（渐变）双层，心形裁剪；随窗口移动倾斜晃动。
          负面情绪峰值分档变色（红→蓝→灰→黑），颜色在 frame 循环里平滑过渡 -->
     <g :clip-path="`url(#${clipId})`" :transform="`rotate(${tiltDeg} 12 12)`">
       <path :d="backWaveD" :fill="backWaveColor" />
       <path :d="frontWaveD" :fill="`url(#${gradId})`" />
-      <!-- 黑色雾霾：负面峰值 ≥100 左右从液面升起的黑烟（高斯模糊柔化） -->
-      <circle
-        v-for="(p, i) in smokePuffs"
-        :key="i"
-        :cx="p.x"
-        :cy="p.y"
-        :r="p.r"
-        fill="#0b0b10"
-        :opacity="p.alpha"
-        :filter="`url(#${smokeBlurId})`"
-      />
+      <!-- 环境雾霾染色：整颗心随雾霾强度变浑浊（深罩在液体之上） -->
+      <path :d="HEART_PATH" :fill="hazeTintColor" />
     </g>
 
     <!-- 描边盖在液体之上：白边，满溢（>100）发光（颜色随情绪档位） -->
@@ -50,6 +38,17 @@
       stroke-width="1.8"
       stroke-linecap="round"
       stroke-linejoin="round"
+    />
+
+    <!-- 黑色雾霾粒子：从爱心外缘冒出，向外向上飘散（不裁剪，可飞出图标边界） -->
+    <circle
+      v-for="(p, i) in hazeParticles"
+      :key="i"
+      :cx="p.x"
+      :cy="p.y"
+      :r="p.r"
+      fill="#101016"
+      :opacity="p.alpha"
     />
   </svg>
 </template>
@@ -76,11 +75,10 @@ const props = withDefaults(
 const HEART_PATH =
   "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z";
 
-// 同页多颗心共存，clip/渐变/滤镜 id 必须各自唯一
+// 同页多颗心共存，clip/渐变 id 必须各自唯一
 const uid = useId();
 const clipId = `heart-clip-${uid}`;
 const gradId = `heart-grad-${uid}`;
-const smokeBlurId = `heart-smoke-blur-${uid}`;
 
 // ── 情绪分档配色（负面峰值驱动）：[顶部色, 底部色] ──
 type Rgb = [number, number, number];
@@ -140,10 +138,25 @@ const backWaveColor = computed(() => {
 });
 
 const overflow = computed(() => (props.value ?? 0) > 100);
+/** 雾霾强度 0..1（ref 供雾晕样式使用）：负面峰值 ≥95 起、≥135 拉满 */
+const hazeLevel = ref(0);
+/** 环境雾霾染色：整颗心罩一层暗色（强度随雾霾），让黑化状态在深色背景下也可读 */
+const hazeTintColor = computed(
+  () => `rgba(10, 10, 16, ${(hazeLevel.value * 0.42).toFixed(3)})`,
+);
 const glowStyle = computed(() => {
-  if (!overflow.value) return {};
-  const [r, g, b] = palette.value.bottom;
-  return { filter: `drop-shadow(0 0 4px rgba(${r}, ${g}, ${b}, 0.9))` };
+  const filters: string[] = [];
+  if (overflow.value) {
+    const [r, g, b] = palette.value.bottom;
+    filters.push(`drop-shadow(0 0 4px rgba(${r}, ${g}, ${b}, 0.9))`);
+  }
+  // 黑化雾晕：整颗心笼一层黑色阴影，配合黑烟粒子读出「雾霾」感
+  if (hazeLevel.value > 0.03) {
+    filters.push(`drop-shadow(0 0 6px rgba(5, 5, 8, ${(hazeLevel.value * 0.9).toFixed(2)}))`);
+  }
+  return filters.length
+    ? { filter: filters.join(" "), overflow: "visible" }
+    : { overflow: "visible" };
 });
 
 /** 目标液位 0..1 */
@@ -159,20 +172,19 @@ const backWaveD = ref("");
 /** 液面倾斜角（度）：窗口拖动时注入角速度，弹簧回正 */
 const tiltDeg = ref(0);
 
-interface SmokePuff {
+interface HazeParticle {
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   r: number;
   life: number;
   maxLife: number;
-  vy: number;
-  drift: number;
   alpha: number;
 }
-/** 黑烟粒子（普通数组即可：waveD 每帧更新本就驱动重渲染） */
-const smokePuffs: SmokePuff[] = [];
-let smokeTimer = 0;
-let haze = 0; // 雾霾强度 0..1：负面峰值 ≥95 起、≥135 拉满
+/** 雾霾粒子（普通数组即可：waveD 每帧更新本就驱动重渲染） */
+const hazeParticles: HazeParticle[] = [];
+let hazeTimer = 0;
 
 let level = targetLevel.value;
 let velocity = 0;
@@ -227,34 +239,42 @@ function frame(t: number) {
   frontWaveD.value = wavePath(surfaceY, ampFront, phase, 1.5);
   backWaveD.value = wavePath(surfaceY + 0.6, ampFront * 0.75, phase * 0.8 + 1.9, 1.2);
 
-  // ── 黑色雾霾：负面峰值 ≥95 起从液面冒黑烟，透明度随雾霾强度 ──
+  // ── 黑色雾霾：负面峰值 ≥95 起，
+  //    粒子从爱心顶部两瓣冒出，向上飘散（上浮加速 + 左右摆动 + 扩散）──
   const hazeTarget = Math.min(1, Math.max(0, ((props.negative ?? 0) - 95) / 40));
-  haze += (hazeTarget - haze) * (1 - Math.exp(-2.5 * dt));
+  hazeLevel.value += (hazeTarget - hazeLevel.value) * (1 - Math.exp(-2.5 * dt));
+  const haze = hazeLevel.value;
   if (haze > 0.03) {
-    smokeTimer -= dt;
-    if (smokeTimer <= 0 && smokePuffs.length < 7) {
-      smokePuffs.push({
-        x: 6 + Math.random() * 12,
-        y: surfaceY + 1,
-        r: 1.2 + Math.random() * 1.6,
+    hazeTimer -= dt;
+    if (hazeTimer <= 0 && hazeParticles.length < 64) {
+      // 心形顶部上缘随机取一点：角度取上半圆 [π, 2π]（y 轴向下，sin 为负即上方）
+      const ang = Math.PI * (1 + Math.random());
+      const edgeR = 9.6 + Math.random() * 1.4;
+      hazeParticles.push({
+        x: 12 + Math.cos(ang) * edgeR,
+        y: 10 + Math.sin(ang) * edgeR * 0.85,
+        vx: (Math.random() - 0.5) * 1.0,
+        vy: -(1.5 + Math.random() * 1.6),
+        r: 0.9 + Math.random() * 1.1,
         life: 0,
-        maxLife: 1.6 + Math.random() * 1.2,
-        vy: 2.5 + Math.random() * 2.5,
-        drift: (Math.random() - 0.5) * 2,
+        maxLife: 2.8 + Math.random() * 1.8,
         alpha: 0,
       });
-      smokeTimer = (0.25 + Math.random() * 0.3) / haze;
+      hazeTimer = (0.018 + Math.random() * 0.03) / haze;
     }
   }
-  for (let i = smokePuffs.length - 1; i >= 0; i--) {
-    const p = smokePuffs[i];
+  for (let i = hazeParticles.length - 1; i >= 0; i--) {
+    const p = hazeParticles[i];
     p.life += dt;
-    p.y -= p.vy * dt;
-    p.x += Math.sin(p.life * 3 + i) * p.drift * dt;
+    p.x += p.vx * dt + Math.sin(p.life * 4 + i) * 0.6 * dt; // 烟气左右摇曳
+    p.y += p.vy * dt;
+    p.vx *= Math.exp(-0.6 * dt); // 水平漂移衰减，烟柱逐渐垂直上升
+    p.vy -= 0.35 * dt; // 持续上浮加速（缓和，烟雾飘得更久）
+    p.r *= 1 + 0.9 * dt; // 上升扩散
     const fadeIn = Math.min(1, p.life / 0.3);
-    const fadeOut = 1 - p.life / p.maxLife;
+    const fadeOut = Math.pow(Math.max(0, 1 - p.life / p.maxLife), 1.3);
     p.alpha = Math.max(0, haze * 0.55 * Math.min(fadeIn, fadeOut));
-    if (p.life >= p.maxLife) smokePuffs.splice(i, 1);
+    if (p.life >= p.maxLife) hazeParticles.splice(i, 1);
   }
 
   rafId = requestAnimationFrame(frame);
