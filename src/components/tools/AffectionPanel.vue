@@ -9,7 +9,12 @@
       @click="toggleEnabled"
       v-show="!uiStore.showSettings"
     >
-      <Heart :size="18" class="affection-heartbeat" :style="heartbeatStyle" />
+      <HeartLiquid
+        :value="average"
+        :size="18"
+        :class="{ 'affection-heartbeat': heartbeatEnabled }"
+        :style="heartbeatStyle"
+      />
       <h3 class="m-0 hidden text-lg font-bold xl:block">
         {{ $t("ui.affection.title") }}
         <span v-if="average !== null" class="ml-1 text-sm font-normal tabular-nums opacity-80">
@@ -47,9 +52,11 @@
                 class="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#12121c]/90 px-4 py-2.5 backdrop-blur-xl"
               >
                 <div class="flex items-center gap-2">
-                  <Heart
+                  <HeartLiquid
+                    :value="average"
                     :size="17"
-                    class="affection-heartbeat text-[#ff8fc0]"
+                    class="shrink-0"
+                    :class="{ 'affection-heartbeat': heartbeatEnabled }"
                     :style="heartbeatStyle"
                   />
                   <h3 class="text-sm font-semibold tracking-wide text-white">
@@ -279,14 +286,16 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Heart, ChevronDown, CloudRain } from "lucide-vue-next";
+import { ChevronDown, CloudRain } from "lucide-vue-next";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
 import Button from "../base/widget/Button.vue";
 import AffectionRadar from "./AffectionRadar.vue";
 import type { RadarPalette } from "./AffectionRadar.vue";
+import HeartLiquid from "./HeartLiquid.vue";
 import { useGameStore } from "../../stores/modules/game";
 import { useUIStore } from "@/stores/modules/ui/ui";
+import { useSettingsStore } from "@/stores/modules/settings";
 import { avatarFolderParams } from "@/composables/role/useRoleAvatar";
 import { getAvatarFile } from "@/api/services/character";
 import { getAffection } from "@/api/services/affection";
@@ -295,6 +304,10 @@ import type { AffectionVector, NegativeVector } from "@/stores/modules/game/stat
 const { t } = useI18n();
 const gameStore = useGameStore();
 const uiStore = useUIStore();
+const settingsStore = useSettingsStore();
+
+/** 心跳动画开关（高级设置 → 主菜单，立即生效；关闭后液体爱心静止） */
+const heartbeatEnabled = computed(() => settingsStore.affectionHeartbeatEnabled);
 
 const enabled = ref(false);
 const introOpen = ref(false);

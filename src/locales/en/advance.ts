@@ -42,5 +42,9 @@ export default {
     memoryDesc:
       "Inspect a role's memory bank and the context actually sent to the LLM, for diagnosing memory compaction and injection",
     memoryButton: "Open Memory Debug",
+    affectionTitle: "Affection Heartbeat",
+    affectionDesc:
+      "Toggle the heartbeat animation and red liquid effect of the affection heart in the top bar; applies instantly and saves automatically",
+    affectionToggle: "Enable heartbeat animation",
   },
 };

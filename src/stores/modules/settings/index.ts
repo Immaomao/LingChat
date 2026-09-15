@@ -56,6 +56,7 @@ export const DEFAULT_SETTINGS = {
     dialogScrollHistoryEnabled: true, // 滚轮向上查看历史记录
     dialogSpacebarHideEnabled: true, // 空格键隐藏/显示对话框
     dialogAutoHideOnThinkEnabled: true, // AI 思考时自动隐藏
+    affectionHeartbeatEnabled: true, // 好感度爱心心跳动画开关（关闭后液体爱心静止）
   },
   // 角色设置
   character: {
@@ -114,6 +115,7 @@ export interface DisplaySettings {
   dialogScrollHistoryEnabled: boolean;
   dialogSpacebarHideEnabled: boolean;
   dialogAutoHideOnThinkEnabled: boolean;
+  affectionHeartbeatEnabled: boolean;
 }
 
 export interface CharacterSettings {
@@ -188,6 +190,8 @@ export const useSettingsStore = defineStore("settings", {
     dialogScrollHistoryEnabled: (state) => state.display.dialogScrollHistoryEnabled,
     dialogSpacebarHideEnabled: (state) => state.display.dialogSpacebarHideEnabled,
     dialogAutoHideOnThinkEnabled: (state) => state.display.dialogAutoHideOnThinkEnabled,
+    // 好感度爱心心跳动画开关（旧持久化数据缺该字段时回退 true）
+    affectionHeartbeatEnabled: (state) => state.display.affectionHeartbeatEnabled ?? true,
     // 各音量
     characterVolume: (state) => state.audio.characterVolume,
     bubbleVolume: (state) => state.audio.bubbleVolume,
@@ -391,6 +395,10 @@ export const useSettingsStore = defineStore("settings", {
     },
     setDialogAutoHideOnThinkEnabled(enabled: boolean) {
       this.display.dialogAutoHideOnThinkEnabled = enabled;
+    },
+    // 设置好感度爱心心跳动画开关
+    setAffectionHeartbeatEnabled(enabled: boolean) {
+      this.display.affectionHeartbeatEnabled = enabled;
     },
     // 全部重置为默认
     resetDialogAppearance() {
