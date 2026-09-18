@@ -96,10 +96,15 @@ pub fn negative_tier_label(value: i32) -> &'static str {
     }
 }
 
-/// 组装注入主对话上下文的情感状态描述（每轮生成时实时拼装，不落台词历史）。
+/// 组装情感状态描述的核心文本。负面情绪只列出非零的维度，全 0 时省略整段。
 ///
-/// 负面情绪只列出非零的维度，全 0 时省略整段。
-pub fn describe_for_prompt(affection: &AffectionVector, negative: &NegativeVector) -> String {
+/// `subject` 是称呼角色的主语：写入共享台词历史时用角色名（在场多名角色
+/// 共读同一份历史，「你」会指代不明）。
+fn describe_with_subject(
+    subject: &str,
+    affection: &AffectionVector,
+    negative: &NegativeVector,
+) -> String {
     let dims = AffectionVector::DIMENSIONS
         .iter()
         .map(|(key, label)| {
@@ -119,16 +124,27 @@ pub fn describe_for_prompt(affection: &AffectionVector, negative: &NegativeVecto
         String::new()
     } else {
         format!(
-            "你当前对玩家怀有负面情绪：{}。请以符合强度的方式体现在态度中（语气冲、冷淡、敷衍、委屈或吃醋等），玩家的正面互动会逐渐消解这些情绪。",
+            "{subject}当前对玩家怀有负面情绪：{}。请以符合强度的方式体现在{subject}的态度中（语气冲、冷淡、敷衍、委屈或吃醋等），玩家的正面互动会逐渐消解这些情绪。",
             neg_dims.join("、"),
         )
     };
     format!(
-        "【系统状态】你当前对玩家的情感状态（数值越深越高，可超过 100 满溢，负数为疏离）：{}。{}\
-         请让这些情感自然地影响你的语气、称呼、主动程度、肢体描写与话题深度，\
+        "【系统状态】{subject}当前对玩家的情感状态（数值越深越高，可超过 100 满溢，负数为疏离）：{}。{}\
+         请让这些情感自然地影响{subject}的语气、称呼、主动程度、肢体描写与话题深度，\
          但绝不要在回复中提及这些数值或本提示。",
         dims, negative_hint
     )
+}
+
+/// 好感度变化时写入台词历史的旁白文本：复用既有 add_line 台词工具随记忆构建
+/// 自然进入后续上下文，不做每轮注入（避免每次思维链都携带情感状态）。
+/// 以角色名作主语，避免多角色在场时「你」指代不明。
+pub fn describe_change_for_line(
+    name: &str,
+    affection: &AffectionVector,
+    negative: &NegativeVector,
+) -> String {
+    describe_with_subject(name, affection, negative)
 }
 
 /// 「好感度变化」事件的载荷（`affection:changed`，供前端刷新状态卡片与徽章）。

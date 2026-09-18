@@ -260,12 +260,8 @@ impl MessageGenerator {
             return Ok(Vec::new());
         };
         let role = gs.get_role(&self.deps.db, rid).await?;
-        let mut context = role.memory.clone();
-        // 注入当前角色对玩家的情感状态与负面情绪（每轮实时拼装，不落台词历史）
-        context.push(LlmMessage::system(
-            crate::ai_service::affection::describe_for_prompt(&role.affection, &role.negative),
-        ));
-        Ok(context)
+        // 好感度不再逐轮注入上下文；变化时以旁白台词写入历史（见 maybe_evaluate_affection）
+        Ok(role.memory.clone())
     }
 
     /// Step 3: 启动 LLM 流管道，统一处理 thinking emit 与错误分发。
@@ -485,6 +481,7 @@ impl MessageGenerator {
         let god = Arc::clone(god);
         let game_status = self.deps.game_status.clone();
         let app = self.deps.app.clone();
+        let db = self.deps.db.clone();
         tauri::async_runtime::spawn(async move {
             match god.evaluate_affection(&lines, &npcs).await {
                 Ok(adjustments) => {
@@ -517,6 +514,27 @@ impl MessageGenerator {
                             payload.average,
                         );
                         let _ = app.emit("affection:changed", payload);
+
+                        // 变化结果以旁白台词写入历史（复用换装/场景同款 add_line 台词
+                        // 工具），随记忆构建进入后续上下文；不做每轮注入，避免每次
+                        // 思维链都携带情感状态
+                        let name = gs
+                            .role_manager
+                            .get_loaded(adj.role_id)
+                            .and_then(|r| r.display_name.clone())
+                            .unwrap_or_else(|| format!("角色{}", adj.role_id));
+                        let text = crate::ai_service::affection::describe_change_for_line(
+                            &name, &values, &negative,
+                        );
+                        let line = LineBase {
+                            content: PromptRole::Narrator.build_prompt(&text),
+                            attribute: LineAttributeExt(LineAttribute::User),
+                            display_name: Some("系统".to_string()),
+                            ..Default::default()
+                        };
+                        if let Err(e) = gs.add_line(&db, line).await {
+                            tracing::warn!("[Affection] 写入好感度旁白台词失败: {e:#}");
+                        }
                     }
                 },
                 Err(e) => tracing::warn!("[Affection] 好感度评估失败: {e:#}"),
