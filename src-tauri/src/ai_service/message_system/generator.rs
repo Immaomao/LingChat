@@ -423,6 +423,10 @@ impl MessageGenerator {
         let Some(god) = &self.deps.god_agent else {
             return;
         };
+        // 好感度系统总开关（高级设置）：关闭后不评估、不写旁白台词
+        if !god.config.affection_enabled {
+            return;
+        }
         let interval = god.config.affection_eval_interval.max(1);
         let window = god.config.recent_window;
 
@@ -497,6 +501,17 @@ impl MessageGenerator {
                         ) else {
                             continue;
                         };
+                        // 持久化到本存档的全局变量 JSON（跟随存档保存）
+                        gs.set_variable(
+                            crate::ai_service::affection::var_key(adj.role_id),
+                            crate::ai_service::affection::state_to_value(
+                                &crate::ai_service::affection::AffectionState {
+                                    total: values.average(),
+                                    vector: values,
+                                    negative,
+                                },
+                            ),
+                        );
                         let payload = AffectionChangedPayload {
                             role_id: adj.role_id,
                             deltas: adj.deltas.iter().cloned().collect(),
@@ -529,6 +544,9 @@ impl MessageGenerator {
                         let line = LineBase {
                             content: PromptRole::Narrator.build_prompt(&text),
                             attribute: LineAttributeExt(LineAttribute::User),
+                            // sender_role_id=0 标记为玩家侧消息，与记忆构建器对齐
+                            // （System 属性会被记忆构建器去重丢弃，切勿使用）
+                            sender_role_id: Some(0),
                             display_name: Some("系统".to_string()),
                             ..Default::default()
                         };

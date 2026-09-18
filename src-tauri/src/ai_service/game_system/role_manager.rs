@@ -224,9 +224,9 @@ impl GameRoleManager {
 
         tracing::info!("角色 {} 的服装设置为：{}", role.id, clothes);
 
-        // 角色目录与好感度：目录解析与 RoleRepo::get_role_settings_by_id 同规则
-        // （MAIN → characters/，NPC → scripts/{key}/characters/），好感度文件与
-        // settings.yml 同目录存放，跟随角色而非存档。
+        // 角色目录与好感度初始值：目录解析与 RoleRepo::get_role_settings_by_id 同规则
+        // （MAIN → characters/，NPC → scripts/{key}/characters/）；旧版 affection.yml
+        // 仅作遗留初始值读取，运行时好感度存进存档全局变量（见 GameStatus::get_role 覆盖）。
         let character_dir = match role.role_type {
             crate::db::entities::role::RoleType::Main => Some(crate::api::resolve_character_dir_in(
                 &self.data_dir,
@@ -260,7 +260,8 @@ impl GameRoleManager {
         Ok(())
     }
 
-    /// 调整角色好感度与负面情绪并写回角色文件；角色未加载时返回 None。
+    /// 调整角色好感度与负面情绪的内存值；角色未加载时返回 None。
+    /// 持久化由调用方写入存档全局变量（见 `affection::var_key`）。
     /// 返回调整后的（好感六维, 负面六维）。
     pub fn adjust_affection(
         &mut self,
@@ -269,24 +270,29 @@ impl GameRoleManager {
         negative_deltas: &[(String, i32)],
     ) -> Option<(AffectionVector, NegativeVector)> {
         let role = self.loaded_roles.get_mut(&role_id)?;
-        let mut changed = false;
         for (dim, delta) in deltas {
-            changed |= role.affection.add_delta(dim, *delta);
+            role.affection.add_delta(dim, *delta);
         }
         for (dim, delta) in negative_deltas {
-            changed |= role.negative.add_delta(dim, *delta);
-        }
-        if changed {
-            crate::ai_service::affection::save(
-                role.character_dir.as_deref(),
-                &crate::ai_service::affection::AffectionState {
-                    total: role.affection.average(),
-                    vector: role.affection,
-                    negative: role.negative,
-                },
-            );
+            role.negative.add_delta(dim, *delta);
         }
         Some((role.affection, role.negative))
+    }
+
+    /// 用存档全局变量中的好感度覆盖所有已加载角色的内存值（读档恢复用）。
+    pub fn overlay_affections_from_vars(&mut self, vars: &HashMap<String, serde_json::Value>) {
+        for role in self.loaded_roles.values_mut() {
+            let Some(rid) = role.role_id else {
+                continue;
+            };
+            if let Some(state) = vars
+                .get(&crate::ai_service::affection::var_key(rid))
+                .and_then(crate::ai_service::affection::state_from_value)
+            {
+                role.affection = state.vector;
+                role.negative = state.negative;
+            }
+        }
     }
 
     /// 所有已加载角色的当前好感度状态（role_id 字符串键，便于 JSON 序列化）。

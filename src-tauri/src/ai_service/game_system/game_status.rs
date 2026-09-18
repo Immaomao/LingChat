@@ -101,7 +101,20 @@ impl GameStatus {
         db: &DatabaseConnection,
         role_id: i32,
     ) -> Result<&'a mut GameRole> {
-        self.role_manager.get_role(db, role_id).await
+        // 存档全局变量里的好感度优先于角色目录旧文件（后者仅作加载初始值）
+        let var = self
+            .global_variables
+            .get(&crate::ai_service::affection::var_key(role_id))
+            .cloned();
+        let role = self.role_manager.get_role(db, role_id).await?;
+        if let Some(state) = var
+            .as_ref()
+            .and_then(crate::ai_service::affection::state_from_value)
+        {
+            role.affection = state.vector;
+            role.negative = state.negative;
+        }
+        Ok(role)
     }
 
     /// 追加台词，记录当前在场者为感知列表，并刷新相关角色的记忆。
@@ -262,6 +275,9 @@ impl GameStatus {
         self.present_role_ids = snapshot.present_role_ids.iter().copied().collect();
         self.onstage_role_ids = snapshot.present_role_ids.clone();
         self.scene_awareness_enabled = snapshot.scene_awareness_enabled;
+        // 好感度跟随存档：快照里的全局变量覆盖已加载角色的内存值
+        self.role_manager
+            .overlay_affections_from_vars(&self.global_variables);
     }
 }
 

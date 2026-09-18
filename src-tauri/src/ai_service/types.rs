@@ -589,8 +589,8 @@ impl Default for CharacterSettings {
 /// 单个角色对玩家的六维情感状态，各项取值任意整数（允许溢出：
 /// >100 为「满溢」、负数为「疏离」）。
 ///
-/// 持久化在角色目录下的 `affection.yml`（跟随角色、跨存档共享，不随存档快照回滚）；
-/// 运行时挂在 `GameRole.affection` 上，由上帝 Agent 定期评估对话后调整。
+/// 持久化在存档全局变量 JSON（`GameStatus::global_variables`，键 `affection.{role_id}`，
+/// 跟随存档快照回滚）；运行时挂在 `GameRole.affection` 上，由上帝 Agent 定期评估对话后调整。
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AffectionVector {
@@ -676,7 +676,7 @@ impl AffectionVector {
 
 /// 单个角色对玩家的六维负面情绪强度，取值任意整数（>100 为「失控」边缘）。
 ///
-/// 与好感度同存于角色目录 `affection.yml`；正面互动会消解、冒犯会积累，
+/// 与好感度同存于存档全局变量 JSON（键 `affection.{role_id}`）；正面互动会消解、冒犯会积累，
 /// 由上帝 Agent 与好感度同一次评估调整。
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -772,11 +772,11 @@ pub struct GameRole {
     pub prompt: Option<String>,
     pub current_clothes: String,
     pub memory_bank: GameMemoryBank,
-    /// 对玩家的六维好感度（持久化在角色目录 `affection.yml`）。
+    /// 对玩家的六维好感度（持久化在存档全局变量 `affection.{role_id}`）。
     pub affection: AffectionVector,
-    /// 对玩家的六维负面情绪强度（同源 `affection.yml`；评估积累、安抚消解）。
+    /// 对玩家的六维负面情绪强度（同源存档全局变量；评估积累、安抚消解）。
     pub negative: NegativeVector,
-    /// 角色目录（settings.yml 所在路径，好感度文件也写在这里）。
+    /// 角色目录（settings.yml 所在路径；旧版 `affection.yml` 初始值也从这里读取）。
     pub character_dir: Option<PathBuf>,
     pub voice_maker: Option<crate::ai_service::tts::VoiceMaker>,
 }
