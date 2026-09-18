@@ -2,8 +2,7 @@
   <!-- 仅自由对话模式显示：番茄钟 + 日程 + 好感度（并列、挨在一起） -->
   <div
     v-if="shouldShow"
-    class="fixed top-[calc(15px+var(--safe-area-inset-top))] left-5 z-2000 flex items-start gap-3
-      transition-all duration-300 ease-in-out"
+    class="fixed top-[calc(15px+var(--safe-area-inset-top))] left-5 z-2000 flex items-start gap-3 transition-all duration-300 ease-in-out"
   >
     <PomodoroPanel />
     <SchedulePanel />
@@ -12,16 +11,16 @@
 </template>
 
 <script setup lang="ts">
-  import { computed } from "vue";
-  import { useGameStore } from "@/stores/modules/game";
-  import PomodoroPanel from "@/components/pomodoro/PomodoroPanel.vue";
-  import SchedulePanel from "@/components/schedule/SchedulePanel.vue";
-  import AffectionPanel from "@/components/tools/AffectionPanel.vue";
+import { computed } from "vue";
+import { useGameStore } from "@/stores/modules/game";
+import PomodoroPanel from "@/components/pomodoro/PomodoroPanel.vue";
+import SchedulePanel from "@/components/schedule/SchedulePanel.vue";
+import AffectionPanel from "@/components/tools/AffectionPanel.vue";
 
-  const gameStore = useGameStore();
+const gameStore = useGameStore();
 
-  const shouldShow = computed(() => {
-    // 剧情模式不显示番茄钟/日程/好感度
-    return !(gameStore.runningScript && gameStore.runningScript.isRunning);
-  });
+const shouldShow = computed(() => {
+  // 剧情模式不显示番茄钟/日程/好感度
+  return !(gameStore.runningScript && gameStore.runningScript.isRunning);
+});
 </script>

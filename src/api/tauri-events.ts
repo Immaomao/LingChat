@@ -25,7 +25,7 @@ import type { AffectionChangedPayload } from "./services/affection";
 
 function asEvent(
   payload: unknown,
-  defaults: { type: string; defaultDuration: number; isFinal?: boolean }
+  defaults: { type: string; defaultDuration: number; isFinal?: boolean },
 ): ScriptEventType {
   const p = payload as Record<string, unknown>;
   // 优先用引擎从 YAML 读到的 duration；没写才用各事件类型的默认值。
@@ -162,7 +162,7 @@ export function initializeTauriEventListeners() {
       }) + (payload.uac ? `\n\n${i18n.global.t("ui.toolCalls.approvalUac")}` : "");
     const approved = await dialogStore.confirm(
       message,
-      i18n.global.t("ui.toolCalls.approvalTitle")
+      i18n.global.t("ui.toolCalls.approvalTitle"),
     );
     try {
       await invoke("resolve_command_approval", { requestId: payload.request_id, approved });
@@ -187,7 +187,7 @@ export function initializeTauriEventListeners() {
       }) + (payload.uac ? `\n\n${i18n.global.t("ui.toolCalls.approvalUac")}` : "");
     const approved = await dialogStore.confirm(
       message,
-      i18n.global.t("ui.toolCalls.commandDeleteApprovalTitle")
+      i18n.global.t("ui.toolCalls.commandDeleteApprovalTitle"),
     );
     try {
       await invoke("resolve_file_delete_approval", {
@@ -212,7 +212,7 @@ export function initializeTauriEventListeners() {
         action: i18n.global.t(`ui.toolCalls.fileChangeActions.${payload.operation}`),
         path: payload.path,
       }),
-      i18n.global.t("ui.toolCalls.fileChangeApprovalTitle")
+      i18n.global.t("ui.toolCalls.fileChangeApprovalTitle"),
     );
     try {
       await invoke("resolve_file_change_approval", {
@@ -233,7 +233,7 @@ export function initializeTauriEventListeners() {
     const dialogStore = useDialogStore();
     const approved = await dialogStore.confirm(
       i18n.global.t("ui.toolCalls.fileDeleteApprovalMessage", { path: payload.path }),
-      i18n.global.t("ui.toolCalls.fileDeleteApprovalTitle")
+      i18n.global.t("ui.toolCalls.fileDeleteApprovalTitle"),
     );
     try {
       await invoke("resolve_file_delete_approval", {
@@ -265,7 +265,7 @@ export function initializeTauriEventListeners() {
           orphanFiles: payload.orphanFiles ?? 0,
           orphanSize: payload.orphanSize ?? 0,
           timestamp: Date.now(),
-        })
+        }),
       );
     } catch (e) {
       console.warn("[Tauri] 保存 tts:cleanup 状态到 localStorage 失败:", e);
@@ -424,7 +424,7 @@ export function initializeTauriEventListeners() {
   listen("script:end", (event) => {
     console.log("[Tauri] script:end", event.payload);
     eventQueue.addEvent(
-      asEvent(event.payload, { type: "script_end", defaultDuration: 0, isFinal: true })
+      asEvent(event.payload, { type: "script_end", defaultDuration: 0, isFinal: true }),
     );
   });
 
@@ -464,7 +464,7 @@ export function initializeTauriEventListeners() {
   });
 
   console.log(
-    "[Tauri] Event listeners initialized (ai + ai:thinking_progress + tts:cleanup + adventure + auto-save + affection:changed + 13 script events + character:switch + scene:switch)"
+    "[Tauri] Event listeners initialized (ai + ai:thinking_progress + tts:cleanup + adventure + auto-save + affection:changed + 13 script events + character:switch + scene:switch)",
   );
 }
 
@@ -510,6 +510,6 @@ export function initializeCastWindowListeners() {
   });
 
   console.log(
-    "[Tauri] Cast window listeners initialized (scene:switch + character:switch + cast:mic:recognized)"
+    "[Tauri] Cast window listeners initialized (scene:switch + character:switch + cast:mic:recognized)",
   );
 }
