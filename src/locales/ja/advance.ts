@@ -41,10 +41,8 @@ export default {
     memoryButton: "記憶デバッグ画面へ",
     affectionTitle: "好感度システム",
     affectionDesc:
-      "好感度システムのマスタースイッチ（切替後に自動再起動）と、好感度ハートの鼓動・赤い液体の波アニメーションの切替",
+      "好感度システムのマスタースイッチ（切替後に自動再起動）。鼓動・波アニメーションの切替は「その他の詳細設定」にあります",
     affectionMasterToggle: "好感度システムを有効化",
-    affectionToggle: "鼓動アニメーションを有効化",
-    affectionWaveToggle: "波アニメーションを有効化",
     affectionRestartConfirm:
       "好感度システムの切替は再起動後に有効になります。今すぐ再起動しますか？",
     affectionRestartFailed: "再起動に失敗しました。手動で再起動してください",

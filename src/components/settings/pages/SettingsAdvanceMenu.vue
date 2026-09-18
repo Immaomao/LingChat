@@ -157,20 +157,6 @@
         >
           {{ $t("advance.menu.affectionMasterToggle") }}
         </Toggle>
-        <Toggle
-          class="mt-2"
-          :checked="affectionHeartbeatEnabled"
-          @change="settingsStore.setAffectionHeartbeatEnabled($event)"
-        >
-          {{ $t("advance.menu.affectionToggle") }}
-        </Toggle>
-        <Toggle
-          class="mt-2"
-          :checked="affectionWaveEnabled"
-          @change="settingsStore.setAffectionWaveEnabled($event)"
-        >
-          {{ $t("advance.menu.affectionWaveToggle") }}
-        </Toggle>
       </MenuItem>
     </div>
 
@@ -211,16 +197,12 @@ import { MenuItem } from "../../ui";
 import { Button } from "../../base";
 import Toggle from "@/components/base/widget/Toggle.vue";
 import { SUPPORTED_LOCALES, setLocale, type AppLocale } from "@/locales";
-import { useSettingsStore } from "@/stores/modules/settings";
 import { useDialogStore } from "@/stores/modules/ui/dialog";
 import { getEnvConfigByKey, saveEnvConfig } from "@/api/services/config";
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 
 const { locale, t } = useI18n();
-const settingsStore = useSettingsStore();
 const dialogStore = useDialogStore();
-const affectionHeartbeatEnabled = computed(() => settingsStore.affectionHeartbeatEnabled);
-const affectionWaveEnabled = computed(() => settingsStore.affectionWaveEnabled);
 
 // 好感度系统总开关，与「其他高级设置→好感度」的 affection.enabled 是同一项，切换后重启生效
 const affectionMasterEnabled = ref(true);

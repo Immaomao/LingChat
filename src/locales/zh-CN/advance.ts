@@ -38,10 +38,8 @@ export default {
     memoryButton: "进入记忆调试界面",
     affectionTitle: "好感度系统",
     affectionDesc:
-      "好感度系统总开关（切换后自动重启生效），以及好感度爱心的跳动与红色液体波浪动画开关",
+      "好感度系统总开关（切换后自动重启生效）；心跳与波浪动画开关在「其他高级设置 → 好感度」中",
     affectionMasterToggle: "启用好感度系统",
-    affectionToggle: "启用心跳动画",
-    affectionWaveToggle: "启用波浪动画",
     affectionRestartConfirm: "切换好感度系统将在重启后生效，确定立即重启应用吗？",
     affectionRestartFailed: "重启失败，请手动重启应用",
   },

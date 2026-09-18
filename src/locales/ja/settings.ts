@@ -160,6 +160,12 @@ export default {
       reconnecting: "再接続中…",
       forceReconnect: "TTS を強制再接続",
     },
+    affectionAnim: {
+      title: "好感度アニメーション",
+      desc: "好感度ハートの鼓動と赤い液体の波アニメーションの切替（即時反映）。鼓動オフ時はトップバーのハートのみ静止し、好感度パネル内は鼓動を継続します",
+      heartbeat: "鼓動アニメーションを有効化",
+      wave: "波アニメーションを有効化",
+    },
     saveButton: "保存",
     loadFailed: "読み込み失敗",
     loadFailedDesc: "設定を読み込めないか、設定が空です。",

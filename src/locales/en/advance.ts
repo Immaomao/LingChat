@@ -44,10 +44,8 @@ export default {
     memoryButton: "Open Memory Debug",
     affectionTitle: "Affection System",
     affectionDesc:
-      "Master switch for the affection system (auto-restarts to apply), plus heartbeat and red liquid wave animation toggles for the affection heart",
+      "Master switch for the affection system (auto-restarts to apply); heartbeat and wave animation toggles are under Other Advanced Settings",
     affectionMasterToggle: "Enable affection system",
-    affectionToggle: "Enable heartbeat animation",
-    affectionWaveToggle: "Enable wave animation",
     affectionRestartConfirm:
       "Changing the affection system takes effect after a restart. Restart the app now?",
     affectionRestartFailed: "Restart failed, please restart the app manually",

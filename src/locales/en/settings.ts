@@ -172,6 +172,12 @@ export default {
       reconnecting: "Reconnecting…",
       forceReconnect: "Force Reconnect TTS",
     },
+    affectionAnim: {
+      title: "Affection Animations",
+      desc: "Heartbeat and red liquid wave animation toggles for the affection heart, applied instantly; with heartbeat off, the top-bar heart stays still while the one inside the affection panel keeps beating",
+      heartbeat: "Enable heartbeat animation",
+      wave: "Enable wave animation",
+    },
     saveButton: "Save",
     loadFailed: "Load Failed",
     loadFailedDesc: "Unable to load the config, or the config is empty.",
