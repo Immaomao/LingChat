@@ -141,7 +141,7 @@
       </MenuItem>
     </div>
 
-    <!-- 好感度心跳 -->
+    <!-- 好感度系统 -->
     <div class="h-full transition-all duration-300">
       <MenuItem :title="$t('advance.menu.affectionTitle')" size="large">
         <template #header>
@@ -151,6 +151,14 @@
           {{ $t("advance.menu.affectionDesc") }}
         </p>
         <Toggle
+          :key="affectionMasterEpoch"
+          :checked="affectionMasterEnabled"
+          @change="onAffectionMasterToggle"
+        >
+          {{ $t("advance.menu.affectionMasterToggle") }}
+        </Toggle>
+        <Toggle
+          class="mt-2"
           :checked="affectionHeartbeatEnabled"
           @change="settingsStore.setAffectionHeartbeatEnabled($event)"
         >
@@ -197,18 +205,54 @@ import {
   Wrench,
 } from "lucide-vue-next";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { useI18n } from "vue-i18n";
 import { MenuItem } from "../../ui";
 import { Button } from "../../base";
 import Toggle from "@/components/base/widget/Toggle.vue";
 import { SUPPORTED_LOCALES, setLocale, type AppLocale } from "@/locales";
 import { useSettingsStore } from "@/stores/modules/settings";
-import { computed } from "vue";
+import { useDialogStore } from "@/stores/modules/ui/dialog";
+import { getEnvConfigByKey, saveEnvConfig } from "@/api/services/config";
+import { computed, onMounted, ref } from "vue";
 
-const { locale } = useI18n();
+const { locale, t } = useI18n();
 const settingsStore = useSettingsStore();
+const dialogStore = useDialogStore();
 const affectionHeartbeatEnabled = computed(() => settingsStore.affectionHeartbeatEnabled);
 const affectionWaveEnabled = computed(() => settingsStore.affectionWaveEnabled);
+
+// 好感度系统总开关，与「其他高级设置→好感度」的 affection.enabled 是同一项，切换后重启生效
+const affectionMasterEnabled = ref(true);
+// 取消确认或操作失败时递增，强制重渲染 Toggle 以恢复开关视觉状态
+const affectionMasterEpoch = ref(0);
+
+onMounted(async () => {
+  try {
+    const item = await getEnvConfigByKey("affection.enabled");
+    affectionMasterEnabled.value = item.value !== "false";
+  } catch {
+    affectionMasterEnabled.value = true;
+  }
+});
+
+// 重启流程抄自 SettingsBackground 的 HDR 开关：确认 → 写配置 → relaunch
+async function onAffectionMasterToggle(enabled: boolean) {
+  const ok = await dialogStore.confirm(t("advance.menu.affectionRestartConfirm"));
+  if (!ok) {
+    affectionMasterEpoch.value++;
+    return;
+  }
+  try {
+    await saveEnvConfig({ "affection.enabled": String(enabled) });
+    affectionMasterEnabled.value = enabled;
+    await relaunch();
+  } catch (e) {
+    console.error("切换好感度系统失败:", e);
+    affectionMasterEpoch.value++;
+    dialogStore.alert(t("advance.menu.affectionRestartFailed"));
+  }
+}
 
 const emit = defineEmits<{
   navigate: [tab: "llm" | "tts" | "asr" | "other" | "tools" | "cast" | "memory"];

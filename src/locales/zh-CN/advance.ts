@@ -36,9 +36,13 @@ export default {
     memoryTitle: "永久记忆调试",
     memoryDesc: "查看角色当前的记忆库内容与真实上下文，用于排查记忆压缩与注入问题",
     memoryButton: "进入记忆调试界面",
-    affectionTitle: "好感度心跳",
-    affectionDesc: "好感度爱心的跳动与红色液体波浪动画开关；关闭心跳后顶栏爱心静止，好感度面板内仍会跳动",
+    affectionTitle: "好感度系统",
+    affectionDesc:
+      "好感度系统总开关（切换后自动重启生效），以及好感度爱心的跳动与红色液体波浪动画开关",
+    affectionMasterToggle: "启用好感度系统",
     affectionToggle: "启用心跳动画",
     affectionWaveToggle: "启用波浪动画",
+    affectionRestartConfirm: "切换好感度系统将在重启后生效，确定立即重启应用吗？",
+    affectionRestartFailed: "重启失败，请手动重启应用",
   },
 };
