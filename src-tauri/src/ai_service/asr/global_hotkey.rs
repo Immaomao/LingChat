@@ -13,7 +13,7 @@
 //! 规范化输出格式不一致），保证后续新增其它全局快捷键时互不误触发。
 
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
@@ -32,6 +32,12 @@ pub struct GlobalHotkeyState {
     /// 下绑 `` ` `` 键会 store 0（= "未注册"哨兵），事件全部被丢弃且无任何
     /// 报错提示（审查 P-2）。
     registered_id: AtomicU32,
+    /// 界面门控（前端 chatActive 驱动）：仅 /chat 与 /pet 界面为 true。
+    /// OS 级注册会占用键位（其它应用收不到该键的按键）——离开聊天界面必须
+    /// 注销释放，否则主菜单/致谢页等界面下快捷键仍拦截系统按键。
+    /// 默认 false：启动停在主菜单，由前端 ensureInit 的 chatActive watch
+    ///（immediate）立即同步真实状态（直接进聊天页的场景同步为 true）。
+    active: AtomicBool,
 }
 
 /// 全局快捷键按键事件（emit 到 main 窗口，前端 useAsrInput 监听驱动状态机）。
@@ -49,11 +55,13 @@ pub struct PttGlobalStatus {
 }
 
 /// 按当前设置同步全局快捷键注册状态（幂等）：
-/// ptt_global 开 → 注册 `ptt_key` 映射的 HotKey；关 → 注销。
+/// ptt_global 开 **且界面门控激活** → 注册 `ptt_key` 映射的 HotKey；否则 → 注销。
 /// 注册失败（键被占用/插件不支持该键）返回 Err，内部状态保持"未注册"。
 pub fn sync(app: &AppHandle, settings: &AsrSettings) -> Result<(), String> {
     let state = app.state::<GlobalHotkeyState>();
-    let want = if settings.ptt_global {
+    // 界面门控（set_active 驱动）：非 /chat//pet 界面时不注册也不报错——
+    // 门控关闭时未注册是预期状态，绑定非法等错误留到回聊天界面注册时再提示
+    let want = if settings.ptt_global && state.active.load(Ordering::Relaxed) {
         match binding_to_hotkey_str(&settings.ptt_key) {
             Some(combo) => match combo.parse::<Shortcut>() {
                 Ok(h) => Some(h),
@@ -96,20 +104,33 @@ pub fn sync(app: &AppHandle, settings: &AsrSettings) -> Result<(), String> {
     Ok(())
 }
 
+/// 界面门控切换（前端 chatActive 驱动）：仅 /chat 与 /pet 界面为 true。
+/// 离开聊天界面 → 注销释放键位（OS 级注册会拦截其它应用的同键输入）；
+/// 回到界面 → 按当前设置重新注册。幂等：状态未变时直接返回，不重复注册/注销。
+pub fn set_active(app: &AppHandle, active: bool, settings: &AsrSettings) -> Result<(), String> {
+    let state = app.state::<GlobalHotkeyState>();
+    if state.active.load(Ordering::Relaxed) == active {
+        return Ok(());
+    }
+    state.active.store(active, Ordering::Relaxed);
+    sync(app, settings)
+}
+
 /// 全局快捷键当前注册是否与设置一致（健康检查，设置页启动查询用）。
 /// 开关关或绑定不可映射 → false；开关开且已按当前绑定注册 → true。
+/// 界面门控未激活（不在聊天界面）：未注册是预期状态，一律视为健康——
+/// 设置页打开时门控必然关闭，不显示"未注册"误报。
 pub fn is_healthy(app: &AppHandle, settings: &AsrSettings) -> bool {
+    let state = app.state::<GlobalHotkeyState>();
+    if !state.active.load(Ordering::Relaxed) {
+        return true;
+    }
     let want = if settings.ptt_global {
         binding_to_hotkey_str(&settings.ptt_key).and_then(|combo| combo.parse::<Shortcut>().ok())
     } else {
         None
     };
-    let registered = app
-        .state::<GlobalHotkeyState>()
-        .registered
-        .lock()
-        .unwrap()
-        .clone();
+    let registered = state.registered.lock().unwrap().clone();
     want.is_some() && registered == want
 }
 

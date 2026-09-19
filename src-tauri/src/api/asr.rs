@@ -523,3 +523,38 @@ pub async fn asr_get_status(
         ptt_global_ok,
     })
 }
+
+/// 全局快捷键的界面门控（前端 chatActive 驱动）：仅 /chat 与 /pet 界面激活。
+/// 离开界面注销释放键位（OS 级注册会拦截其它应用的同键输入）；
+/// 回到界面按当前设置重新注册。移动端 no-op（全局快捷键为桌面端专属）。
+#[tauri::command]
+pub async fn asr_ptt_global_set_active(app: AppHandle, active: bool) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        let settings = settings::load(&app).map_err(|e| err_to_user(&e))?;
+        let result = global_hotkey::set_active(&app, active, &settings);
+        // 门控开启时才上报状态：前端 runtime.pttGlobalOk 必须与实际注册同步
+        //（true 才让窗口内 keydown 退位；注册失败必须回到 false 由窗口内兜底，
+        // 否则双源触发 toggle）。门控关闭（设置页打开）不上报——设置页监听
+        // 该事件提示失败，门控关闭时"未注册"是预期状态，上报会造成误报。
+        if active {
+            let status = match &result {
+                Ok(()) => global_hotkey::PttGlobalStatus {
+                    ok: settings.ptt_global,
+                    reason: String::new(),
+                },
+                Err(e) => global_hotkey::PttGlobalStatus {
+                    ok: false,
+                    reason: e.clone(),
+                },
+            };
+            let _ = app.emit_to("main", "asr:ptt-global-status", status);
+        }
+        result
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, active);
+        Ok(())
+    }
+}

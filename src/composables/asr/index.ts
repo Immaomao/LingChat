@@ -25,7 +25,7 @@ import {
   voicePlaying,
 } from "./state";
 export { asrVoiceActive, ASR_DISPLAY_MS } from "./state";
-import { asrGetStatus, type VadEvent } from "@/api/services/asr";
+import { asrGetStatus, asrPttGlobalSetActive, type VadEvent } from "@/api/services/asr";
 import { useGameStore } from "@/stores/modules/game";
 import { useAsrStore } from "@/stores/modules/settings/asr";
 import { useUIStore } from "@/stores/modules/ui/ui";
@@ -180,6 +180,18 @@ function ensureInit() {
         // handle 的 chatActive 检查丢弃（"没说完不发送"）
         autoListenActive.value = false;
       }
+      // 全局快捷键界面门控：仅 /chat 与 /pet 激活——离开界面注销释放键位
+      // （OS 级注册会拦截其它应用的同键输入；设置抽屉打开也随之注销，
+      // 保证快捷键录入捕获不被 OS 层拦截）。回界面按设置重注册，后端
+      // 经 asr:ptt-global-status 事件上报实际注册状态（失败回 false 由
+      // 窗口内监听兜底）。移动端为 no-op 命令，无需平台分支
+      void asrPttGlobalSetActive(active)
+        .then(() => {
+          // 门控关闭 = 必然未注册（键位已释放）；后端此时不上报状态
+          //（避免设置页误报"注册失败"），本地复位退位判断
+          if (!active) runtime.pttGlobalOk = false;
+        })
+        .catch((e) => asrLog().warn("ptt global gate:", e));
       updateAsrAvailability();
     },
     { immediate: true },

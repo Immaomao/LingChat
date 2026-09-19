@@ -117,6 +117,11 @@ export interface AsrStatus {
 
 export const asrGetStatus = () => invoke<AsrStatus>("asr_get_status");
 
+/** 全局快捷键界面门控（仅 /chat 与 /pet 激活）：离开界面注销释放键位
+ *  （OS 级注册会拦截其它应用的同键输入），回界面按设置重注册。移动端 no-op。 */
+export const asrPttGlobalSetActive = (active: boolean) =>
+  invoke<void>("asr_ptt_global_set_active", { active });
+
 export const asrSetSettings = (settings: AsrSettings) =>
   invoke<void>("asr_set_settings", { settings });
 
