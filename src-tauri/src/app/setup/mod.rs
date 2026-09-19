@@ -56,6 +56,9 @@ pub fn setup(
     app.manage(utils::gpu_perf::GpuDetectionCache::new());
     app.manage(api::role_archive::RoleArchiveState::default());
 
+    #[cfg(desktop)]
+    app.manage(ai_service::asr::global_hotkey::GlobalHotkeyState::default());
+
     // Android 修复：Tauri 在 setup 闭包执行前已创建 webview 窗口，前端 invoke
     // 命令会在 IPC runtime worker 上立即 dispatch；如果 AppState 还没 manage
     // 就会 panic "state() called before manage()"。所以 setup 一开始就 manage
@@ -65,6 +68,23 @@ pub fn setup(
     // 本地 TTS（SBV2 进程内实现）：解析路径、注册 State/开关并收敛运行时。
     let local_tts = ai_service::tts::local::setup::bootstrap(app)?;
     let (db, app_config) = rt.block_on(data::bootstrap(app))?;
+
+    // 语音快捷键全局注册（失去焦点可用）：启动时按持久化设置恢复注册
+    // （失败仅 warn——注册失败不影响启动，用户打开设置页保存一次设置
+    // 即可重试；按键事件转发见 app::builder 的 with_handler 回调）。
+    #[cfg(desktop)]
+    {
+        use ai_service::asr::global_hotkey;
+
+        match ai_service::asr::settings::load(app.handle()) {
+            Ok(s) => {
+                if let Err(e) = global_hotkey::sync(app.handle(), &s) {
+                    tracing::warn!("[ASR] 全局快捷键初始注册失败（非致命）: {e}");
+                }
+            },
+            Err(e) => tracing::warn!("[ASR] 启动加载 ASR 设置失败: {e}"),
+        }
+    }
 
     // 初始化文件日志（从设置读取开关和保留天数）+ 应用 genai 调试开关
     crate::app::logging::apply_log_settings(app, &log_filter);
