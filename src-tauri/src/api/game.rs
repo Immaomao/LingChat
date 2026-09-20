@@ -76,9 +76,9 @@ pub struct CharacterSettingsInit {
     pub body_part: Option<HashMap<String, serde_json::Value>>,
     pub live2d: Option<Live2dSettings>,
     pub character_folder: String,
-    /// 该角色对玩家的六维好感度（由角色目录 `affection.yml` 载入）。
+    /// 该角色对玩家的六维好感度（存档全局变量里的当前值）。
     pub affection: Option<AffectionVector>,
-    /// 该角色当前的六维负面情绪强度（同源 `affection.yml`）。
+    /// 该角色当前的六维负面情绪强度（同源存档全局变量）。
     pub negative: Option<NegativeVector>,
 }
 

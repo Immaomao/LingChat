@@ -224,35 +224,12 @@ impl GameRoleManager {
 
         tracing::info!("角色 {} 的服装设置为：{}", role.id, clothes);
 
-        // 角色目录与好感度初始值：目录解析与 RoleRepo::get_role_settings_by_id 同规则
-        // （MAIN → characters/，NPC → scripts/{key}/characters/）；旧版 affection.yml
-        // 仅作遗留初始值读取，运行时好感度存进存档全局变量（见 GameStatus::get_role 覆盖）。
-        let character_dir = match role.role_type {
-            crate::db::entities::role::RoleType::Main => Some(crate::api::resolve_character_dir_in(
-                &self.data_dir,
-                &settings.character_folder,
-            )),
-            crate::db::entities::role::RoleType::Npc => role.script_key.as_ref().map(|sk| {
-                self.data_dir
-                    .join("game_data")
-                    .join("scripts")
-                    .join(sk)
-                    .join("characters")
-                    .join(&settings.character_folder)
-            }),
-            _ => None,
-        };
-        let affection_state = crate::ai_service::affection::load(character_dir.as_deref());
-
         let new_role = GameRole {
             role_id: Some(role.id),
             display_name: Some(display_name),
             settings,
             resource_path,
             current_clothes: clothes,
-            affection: affection_state.vector,
-            negative: affection_state.negative,
-            character_dir,
             voice_maker,
             ..Default::default()
         };
@@ -296,7 +273,9 @@ impl GameRoleManager {
     }
 
     /// 所有已加载角色的当前好感度状态（role_id 字符串键，便于 JSON 序列化）。
-    pub fn loaded_affections(&self) -> HashMap<String, crate::ai_service::affection::AffectionState> {
+    pub fn loaded_affections(
+        &self,
+    ) -> HashMap<String, crate::ai_service::affection::AffectionState> {
         self.loaded_roles
             .iter()
             .filter_map(|(id, role)| {

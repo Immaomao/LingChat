@@ -101,7 +101,7 @@ impl GameStatus {
         db: &DatabaseConnection,
         role_id: i32,
     ) -> Result<&'a mut GameRole> {
-        // 存档全局变量里的好感度优先于角色目录旧文件（后者仅作加载初始值）
+        // 存档全局变量里的好感度覆盖角色加载时的默认值
         let var = self
             .global_variables
             .get(&crate::ai_service::affection::var_key(role_id))

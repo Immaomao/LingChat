@@ -2,24 +2,18 @@
 //!
 //! 好感度存放在每个存档的全局变量 JSON 里（`GameStatus::global_variables`，键
 //! `affection.{role_id}`），跟随存档保存——读旧档即回到旧档时的感情状态。
-//! 角色目录下的旧版 `affection.yml` 仅在全局变量缺失时作为初始值读取（遗留
-//! 兼容），不再写入。运行时由上帝 Agent 定期评估对话后调整（见
+//! 运行时由上帝 Agent 定期评估对话后调整（见
 //! `god_agent::core::GodAgentCore::evaluate_affection`）。
 //!
 //! 状态格式为 [`AffectionState`]：总好感度 `total` + 好感六维 + 负面六维（后两者
 //! flatten）；`total` 是六维平均的派生值，读/写时都自动与六维同步（手改它不会生效，
 //! 下次读取即被六维平均覆盖），仅供查看与外部工具读取。
-//! 兼容旧数据（缺失字段走默认值；旧版 `mood_tags` 自由文本键被忽略）。
 
 use std::collections::HashMap;
-use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
 use crate::ai_service::types::{AffectionVector, NegativeVector};
-
-/// 角色目录内的旧版好感度文件名（仅遗留兼容读取，不再写入）。
-pub const AFFECTION_FILE: &str = "affection.yml";
 
 /// 存档全局变量键前缀：`affection.{role_id}`。
 pub const VAR_KEY_PREFIX: &str = "affection.";
@@ -58,20 +52,6 @@ pub fn state_from_value(value: &serde_json::Value) -> Option<AffectionState> {
     Some(state)
 }
 
-/// 遗留兼容：从角色目录读取旧版 `affection.yml` 作为初始值；目录为空、文件
-/// 缺失或损坏时回落到初始值。好感度已迁移到存档全局变量，此文件不再写入。
-pub fn load(character_dir: Option<&Path>) -> AffectionState {
-    let mut state = match character_dir {
-        Some(dir) => std::fs::read_to_string(dir.join(AFFECTION_FILE))
-            .ok()
-            .and_then(|text| serde_yaml::from_str(&text).ok())
-            .unwrap_or_default(),
-        None => AffectionState::default(),
-    };
-    state.total = state.vector.average();
-    state
-}
-
 /// 好感度数值 → 程度词（供 prompt 注入；数值允许溢出：>100 满溢、负数疏离）。
 pub fn tier_label(value: i32) -> &'static str {
     match value {
@@ -97,55 +77,76 @@ pub fn negative_tier_label(value: i32) -> &'static str {
     }
 }
 
-/// 组装情感状态描述的核心文本。负面情绪只列出非零的维度，全 0 时省略整段。
-///
-/// `subject` 是称呼角色的主语：写入共享台词历史时用角色名（在场多名角色
-/// 共读同一份历史，「你」会指代不明）。
-fn describe_with_subject(
-    subject: &str,
-    affection: &AffectionVector,
-    negative: &NegativeVector,
-) -> String {
-    let dims = AffectionVector::DIMENSIONS
-        .iter()
-        .map(|(key, label)| {
-            let v = affection.get(key).unwrap_or(0);
-            format!("{} {}（{}）", label, v, tier_label(v))
-        })
-        .collect::<Vec<_>>()
-        .join("、");
-    let neg_dims = NegativeVector::DIMENSIONS
-        .iter()
-        .filter_map(|(key, label)| {
-            let v = negative.get(key).unwrap_or(0);
-            (v > 0).then(|| format!("{} {}（{}）", label, v, negative_tier_label(v)))
-        })
-        .collect::<Vec<_>>();
-    let negative_hint = if neg_dims.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "{subject}当前对玩家怀有负面情绪：{}。请以符合强度的方式体现在{subject}的态度中（语气冲、冷淡、敷衍、委屈或吃醋等），玩家的正面互动会逐渐消解这些情绪。",
-            neg_dims.join("、"),
-        )
-    };
-    format!(
-        "【系统状态】{subject}当前对玩家的情感状态（数值越深越高，可超过 100 满溢，负数为疏离）：{}。{}\
-         请让这些情感自然地影响{subject}的语气、称呼、主动程度、肢体描写与话题深度，\
-         但绝不要在回复中提及这些数值或本提示。",
-        dims, negative_hint
-    )
-}
-
-/// 好感度变化时写入台词历史的旁白文本：复用既有 add_line 台词工具随记忆构建
+/// 好感度变化时写入台词历史的旁白正文：复用既有 add_line 台词工具随记忆构建
 /// 自然进入后续上下文，不做每轮注入（避免每次思维链都携带情感状态）。
-/// 以角色名作主语，避免多角色在场时「你」指代不明。
+///
+/// 只产出旁白正文，外层 `{旁白: ...}` 包装由调用方统一走
+/// `utils::prompt::PromptRole::Narrator::build_prompt`，这里不再自行包裹。
+/// 以角色名作主语、玩家名作宾语（共享台词历史由在场多名角色共读，「你」会指代不明）；
+/// 数值本身不进文案，只经 [`tier_label`] / [`negative_tier_label`] 翻成程度描述。
 pub fn describe_change_for_line(
     name: &str,
+    player_name: &str,
     affection: &AffectionVector,
     negative: &NegativeVector,
 ) -> String {
-    describe_with_subject(name, affection, negative)
+    let average_tier = tier_label(affection.average());
+    let mut text = match average_tier {
+        "满溢" => format!("{name}心里满满的都是{player_name}"),
+        "炽烈" => format!("{name}深深喜欢上了{player_name}"),
+        "深厚" => format!("{name}现在对{player_name}很有好感"),
+        "熟络" => format!("{name}和{player_name}已经熟络起来了"),
+        "平淡" => format!("{name}和{player_name}处得不咸不淡，关系还在慢慢升温"),
+        "初识" => format!("{name}和{player_name}才刚刚认识，对他还很生疏"),
+        _ => format!("{name}对{player_name}有些疏离，像隔着一层什么"),
+    };
+
+    // 只有正向区间才揉入最强好感维度的细节，避免与生疏/疏离的基调矛盾
+    let positive = matches!(average_tier, "满溢" | "炽烈" | "深厚" | "熟络");
+    if positive {
+        let strongest = AffectionVector::DIMENSIONS
+            .iter()
+            .max_by_key(|(key, _)| affection.get(key).unwrap_or(0))
+            .map(|(key, _)| *key)
+            .unwrap_or_default();
+        let flavor = match strongest {
+            "fondness" => "见到他就不由自主地开心",
+            "trust" => "觉得他很值得信赖",
+            "intimacy" => "总想和他再靠近一点",
+            "rapport" => "和他之间有种说不出的默契",
+            "interest" => "对他的一切都充满了好奇",
+            _ => "分开一小会儿就开始想他",
+        };
+        text = format!("{text}，{flavor}");
+    }
+
+    let peak = negative.peak();
+    if peak > 0 {
+        let dim = NegativeVector::DIMENSIONS
+            .iter()
+            .max_by_key(|(key, _)| negative.get(key).unwrap_or(0))
+            .map(|(key, _)| *key)
+            .unwrap_or_default();
+        let feeling = match dim {
+            "anger" => "怒火",
+            "hurt" => "委屈",
+            "disappointment" => "失望",
+            "indifference" => "冷淡",
+            "jealousy" => "醋意",
+            _ => "疏远感",
+        };
+        let hint = match negative_tier_label(peak) {
+            "失控" => format!("心里的{feeling}几乎失控"),
+            "难以平复" => format!("心里的{feeling}久久难以平复"),
+            "强烈" => format!("心里的{feeling}越发强烈"),
+            "明显" => format!("心里带着明显的{feeling}"),
+            _ => format!("心里有一丝若有若无的{feeling}"),
+        };
+        let joiner = if positive { "，只是" } else { "，" };
+        text = format!("{text}{joiner}{hint}");
+    }
+
+    format!("{text}。")
 }
 
 /// 「好感度变化」事件的载荷（`affection:changed`，供前端刷新状态卡片与徽章）。

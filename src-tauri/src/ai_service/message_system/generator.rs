@@ -538,8 +538,12 @@ impl MessageGenerator {
                             .get_loaded(adj.role_id)
                             .and_then(|r| r.display_name.clone())
                             .unwrap_or_else(|| format!("角色{}", adj.role_id));
+                        let player_name = gs.player.user_name.clone();
                         let text = crate::ai_service::affection::describe_change_for_line(
-                            &name, &values, &negative,
+                            &name,
+                            &player_name,
+                            &values,
+                            &negative,
                         );
                         let line = LineBase {
                             content: PromptRole::Narrator.build_prompt(&text),

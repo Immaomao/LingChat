@@ -776,8 +776,6 @@ pub struct GameRole {
     pub affection: AffectionVector,
     /// 对玩家的六维负面情绪强度（同源存档全局变量；评估积累、安抚消解）。
     pub negative: NegativeVector,
-    /// 角色目录（settings.yml 所在路径；旧版 `affection.yml` 初始值也从这里读取）。
-    pub character_dir: Option<PathBuf>,
     pub voice_maker: Option<crate::ai_service::tts::VoiceMaker>,
 }
 
