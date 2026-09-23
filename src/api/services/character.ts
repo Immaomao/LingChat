@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import http from "../http";
 import type { Character, CharacterSelectParams } from "../../types";
 import type { WebInitData } from "./game-info";
-import type { Live2dImportResult, Live2dSettings } from "@/types/live2d";
+import type { AvatarDisplayMode, Live2dImportResult, Live2dSettings } from "@/types/live2d";
 import { i18n } from "@/locales";
 
 interface CharacterSelectResponse {
@@ -74,8 +74,12 @@ export interface RoleInfo {
   bubble_left: number;
   clothes: object;
   clothes_name: string;
+  avatar_mode?: AvatarDisplayMode | null;
   body_part: object;
   live2d?: Live2dSettings | null;
+  avatar_mode_p?: AvatarDisplayMode | null;
+  /** 桌宠无框模式：true = 隐藏圆形外框/半透明底/粒子并取消圆形裁剪 */
+  pet_frameless?: boolean | null;
   character_folder: string;
 }
 

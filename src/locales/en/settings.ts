@@ -401,9 +401,14 @@ export default {
       bubbleTop: "Bubble Top Distance",
       bubbleLeft: "Bubble Left Distance",
       thinkingMessage: "Thinking Message Text",
+      avatarMode: "Stage Display",
       scaleP: "Desktop Pet Scale",
       offsetXP: "Desktop Pet Horizontal Offset",
       offsetYP: "Desktop Pet Vertical Offset",
+      avatarModeP: "Desktop Pet Display",
+      petFrameless: "Frameless Pet",
+      petFramelessHint:
+        "Hide the frame and background so only the character remains; particles are hidden too and the circular crop is removed",
       ttsType: "TTS Type",
       voiceLang: "Voice Language",
       localVoiceId: "Local Voice ID",
@@ -442,6 +447,10 @@ export default {
       fr: "French",
       ru: "Russian",
       pt: "Portuguese",
+    },
+    avatarModeOptions: {
+      live2d: "Live2D Model",
+      image: "Static Portrait",
     },
     dialectOptions: {
       mandarin: "Mandarin",

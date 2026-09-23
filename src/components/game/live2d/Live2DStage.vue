@@ -16,7 +16,12 @@ import { onBeforeUnmount, onMounted, provide, readonly, ref, watch } from "vue";
 import { getLive2dFilePath } from "@/api/services/character";
 import { EMOTION_CONFIG_EMO } from "@/controllers/emotion/config";
 import type { GameRole } from "@/stores/modules/game/state";
-import { resolveLive2dVariant, type Live2dMotionBinding, type Live2dVariant } from "@/types/live2d";
+import {
+  prefersLive2d,
+  resolveLive2dVariant,
+  type Live2dMotionBinding,
+  type Live2dVariant,
+} from "@/types/live2d";
 import { areEyesOpen, focusDirection, pointerToStagePoint } from "./live2d-interaction";
 import { live2dStageContextKey } from "./live2d-stage-context";
 import { calculatePetLayout } from "./live2d-layout";
@@ -126,10 +131,11 @@ function mappedEmotion(emotion: string) {
 }
 
 function variantNameFor(role: GameRole): string | null {
-  if (!role.live2d) return null;
+  const settings = role.live2d;
+  if (!settings || !prefersLive2d(role, props.mode)) return null;
   const clothes = !role.clothesName || role.clothesName === "默认" ? "default" : role.clothesName;
-  const mapped = role.live2d.clothes_variants[clothes];
-  return mapped || role.live2d.default_variant;
+  const mapped = settings.clothes_variants[clothes];
+  return mapped || settings.default_variant;
 }
 
 async function loadModelSource(roleId: number, modelFile: string) {
@@ -493,7 +499,9 @@ function requestSequenceFor(roleId: number) {
 }
 
 async function syncRoles() {
-  const liveRoles = props.roles.filter((role) => role.live2d);
+  // 形象由角色设定决定（主对话/桌宠各自一项），切成静态立绘的角色在此被排除，
+  // 模型根本不加载；全部排除时下面会 destroyApplication()。
+  const liveRoles = props.roles.filter((role) => prefersLive2d(role, props.mode));
   const liveIds = new Set(liveRoles.map((role) => role.roleId));
   let failedChanged = false;
   for (const roleId of [...failedRoleIds]) {
@@ -580,6 +588,8 @@ watch(
           role.offsetXP,
           role.offsetYP,
           role.live2d,
+          role.avatarMode,
+          role.avatarModeP,
         ] as const,
     ),
   queueSync,
@@ -601,7 +611,7 @@ watch(
 );
 
 watch(
-  () => [props.voiceDataUrl, props.roles.some((role) => Boolean(role.live2d))] as const,
+  () => [props.voiceDataUrl, props.roles.some((role) => prefersLive2d(role, props.mode))] as const,
   async ([url, hasLive2dRole]) => {
     const id = ++decodeSequence;
     decodedVoice = null;

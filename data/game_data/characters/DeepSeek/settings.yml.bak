@@ -22,7 +22,6 @@ scale_p: 1.0
 offset_x_p: 0.0
 offset_y_p: 0.0
 avatar_mode_p: live2d
-pet_frameless: true
 voice_models:
   sva_speaker_id: '0'
   sbv2_name: Ling-v2

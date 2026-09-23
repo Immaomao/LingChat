@@ -382,9 +382,14 @@ export default {
       bubbleTop: "吹き出し上端の距離",
       bubbleLeft: "吹き出し左端の距離",
       thinkingMessage: "思考メッセージテキスト",
+      avatarMode: "ステージ表示方式",
       scaleP: "デスクトップペットのスケール",
       offsetXP: "デスクトップペットの水平オフセット",
       offsetYP: "デスクトップペットの垂直オフセット",
+      avatarModeP: "デスクトップペット表示方式",
+      petFrameless: "フレームなし",
+      petFramelessHint:
+        "外枠と背景を非表示にし、キャラクターだけを表示します。パーティクルも非表示になり、円形の切り抜きも解除されます",
       ttsType: "TTS タイプ",
       voiceLang: "音声言語",
       localVoiceId: "ローカル音声 ID",
@@ -423,6 +428,10 @@ export default {
       fr: "フランス語",
       ru: "ロシア語",
       pt: "ポルトガル語",
+    },
+    avatarModeOptions: {
+      live2d: "Live2D モデル",
+      image: "立ち絵",
     },
     dialectOptions: {
       mandarin: "標準中国語",
